@@ -47,6 +47,15 @@ At the beginning of **EVERY** prompt or conversation turn:
   - Concrete technical details (APIs, parameters, database schemas, crediting logic, etc.).
   - The exact question or decision requested from the target project.
 
+### 🚪 Multiple Gateway Routing (The /grill-me Choice Rule)
+- If `list_project_chats` returns `has_multiple_gateways: true` (multiple `[Gateway]` chats found) and the user did not specify which one to contact:
+  - **DO NOT guess arbitrarily.**
+  - Ask the user directly using a clean, numbered choice list (like in `/grill-me`):
+    *„Es wurden mehrere Gateway-Chats in [Projekt] gefunden: 1) [Name], 2) [Name] ... Welcher soll verwendet werden?“*
+  - Dispatch only once the user confirms or if the task matches a gateway's specialized role 100%.
+- If only a single Gateway chat exists (`has_multiple_gateways: false`), dispatch immediately without unnecessary asking.
+
+
 ---
 
 ## 4. 🛑 Anti-Looping & Token-Efficient Status Protocol

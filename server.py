@@ -147,7 +147,7 @@ def tool_list_project_chats(project_name):
     """, (f"%{project_name}%", f"%{project_name}%")).fetchall()
     
     chats = []
-    gateway_chat = None
+    gateway_chats = []
 
     for cid, title, pid, w_raw, updated in rows:
         title_str = title or "Untitled Chat"
@@ -160,14 +160,16 @@ def tool_list_project_chats(project_name):
             "last_updated": updated
         }
         chats.append(chat_item)
-        if is_gateway and not gateway_chat:
-            gateway_chat = chat_item
+        if is_gateway:
+            gateway_chats.append(chat_item)
 
     conn.close()
     return {
         "project_name": project_name,
         "total_chats": len(chats),
-        "recommended_gateway_chat": gateway_chat,
+        "gateway_chats": gateway_chats,
+        "has_multiple_gateways": len(gateway_chats) > 1,
+        "recommended_gateway_chat": gateway_chats[0] if gateway_chats else (chats[0] if chats else None),
         "chats": chats[:25]
     }
 

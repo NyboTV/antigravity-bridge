@@ -43,11 +43,13 @@ This skill coordinates cross-project and inter-agent communication between diffe
 - **DEFAULT: Live Chat Wakeup (`send_message_to_chat`)**
   - Always use this when the user says: *abstimmen, kontaktieren, besprechen, fragen, klären, jetzt, live, sofort*.
   - Call `list_project_chats(project_name=...)`.
-  - Automatically pick the `recommended_gateway_chat` (or first active chat).
+  - **Single Gateway:** If `has_multiple_gateways: false`, dispatch directly to `recommended_gateway_chat`.
+  - **Multiple Gateways:** If `has_multiple_gateways: true`, present a clean numbered list (like in `/grill-me`) and ask the user which gateway chat to target before dispatching.
   - Immediately send the full technical payload.
 - **SECONDARY: Asynchronous Inbox (`send_inbox_note`)**
   - Use ONLY if the user explicitly says: *Notiz hinterlegen, in die Inbox schreiben, für später, als Todo eintragen*.
   - Or if no active chats exist in the target project.
+
 
 ### Step 3: Token-Efficient Status Check & Reactive Wait
 - **Initial Verification (15s):** After dispatching the message, verify **once** after ~15 seconds with `get_chat_status(conversation_id=...)` that the target chat picked up the work (`RUNNING`).
