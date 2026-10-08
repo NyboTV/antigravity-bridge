@@ -106,23 +106,23 @@ Or run it interactively:
 3. If multiple gateways exist, you'll be prompted with a clean numbered choice list (`/grill-me` style).
 4. Select the target chat and confirm the message.
 
-### 2. `/communicate-start` — Setup & Rename New Gateway Chats
+### 2. `/communicate-start` — Setup & Register New Gateway Chats
 Use this as the **very first prompt** in a new chat to turn it into an official project dispatcher:
 
 ```text
 /communicate-start
 ```
 
-The agent prompts you with standardized roles:
+The agent immediately prompts you with standardized roles:
 ```text
 How would you like to name this Gateway chat?
 1. [Gateway] Backend Dispatcher (API, Database, Server logic)
 2. [Gateway] Frontend Dispatcher (Web UI, Clients, Components)
 3. [Gateway] DevOps / Infra Dispatcher (VMs, Docker, Nginx/Caddy, Ports)
 4. [Gateway] QA & Tester Dispatcher (Tests, Audits, Verification)
-5. Custom Name (e.g. "[Gateway] General Dispatcher" or custom write-in)
+5. Custom Name (e.g. "Caleb" or custom write-in)
 ```
-Once chosen, the agent automatically renames the conversation in Antigravity's database and reinforces the binding gateway rules!
+Once chosen, the agent automatically ensures the mandatory `[Gateway] <Name>` prefix formatting, outputs the exact standardized title for quick renaming in the Antigravity sidebar, and locks in the binding gateway operational contract!
 
 ---
 
@@ -133,7 +133,6 @@ Once chosen, the agent automatically renames the conversation in Antigravity's d
 | `list_projects` | Lists all detected Antigravity projects, workspace directories, and chat metrics. |
 | `list_project_chats` | Lists active conversations for a project from Antigravity SQLite DB (identifies all `[Gateway]` chats). |
 | `get_chat_status` | Inspects live execution status (`RUNNING` vs `IDLE`, step count) of any conversation in SQLite. |
-| `rename_chat` | Renames an active conversation in Antigravity's SQLite database (e.g. to set a `[Gateway] ...` title). |
 | `send_message_to_chat` | Sends a message directly into an active conversation via `agentapi send-message`, waking it up immediately. |
 | `reply_to_sender` | Sends an execution receipt or status update back to the `sender_chat_id`. |
 | `send_inbox_note` | Safely appends an asynchronous task into target project's `.agents/INBOX.md`. |
