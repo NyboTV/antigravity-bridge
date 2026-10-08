@@ -69,11 +69,26 @@ def get_agentapi_env():
 def run_agentapi_command(args, timeout=15):
     """Executes an agentapi subcommand cleanly with auto-discovered environment and no shell escaping bugs."""
     env = get_agentapi_env()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONLEGACYWINDOWSSTDIO"] = "0"
+    
     ls_exe = os.environ.get("ANTIGRAVITY_AGENTAPI_EXE")
     if not ls_exe:
         default_ls = os.path.expandvars(r"%LOCALAPPDATA%\Programs\antigravity\resources\bin\language_server.exe")
         if os.path.exists(default_ls):
             ls_exe = default_ls
+        else:
+            try:
+                proc_path = subprocess.check_output(
+                    ["powershell", "-NoProfile", "-Command", "(Get-Process language_server -ErrorAction SilentlyContinue | Select-Object -First 1).Path"],
+                    text=True,
+                    timeout=3
+                ).strip()
+                if proc_path and os.path.exists(proc_path):
+                    ls_exe = proc_path
+            except Exception:
+                pass
             
     if ls_exe and os.path.exists(ls_exe):
         cmd = [ls_exe, "agentapi"] + args
@@ -279,7 +294,7 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
         f"\n\n⚠️ **MANDATORY COMPLETION PROTOCOL:**"
         f"\nUpon finishing your task or analysis, you MUST invoke the tool `reply_to_sender` with:"
         f"\n- `sender_chat_id`: '{sender_chat_id}'"
-        f"\n- `status_message`: Summary of actions taken, decisions, or answers."
+        f"\n- `status_message`: Summary of actions taken, decisions, or answers (written in English)."
         f"\nThis automatically wakes up and notifies the originating conversation."
         f"\n---\n\n"
     )

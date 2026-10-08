@@ -81,6 +81,12 @@ The file `.agents/INBOX.md` is strictly an offline fallback queue for when a pro
   - Remind them that depending on Antigravity's security settings in that workspace, the target Gateway chat may require **manual user approval** for MCP tools, bash commands, or file access (especially on first contact).
   - Explicitly ask the user to keep an eye on the target chat tab to grant any pending permissions so the remote agent is not blocked.
 
+### 🌐 Universal Inter-Agent Protocol Language: English ONLY
+- **User Conversation:** Always communicate with the USER in their preferred language (e.g. German).
+- **Inter-Agent Payloads (`send_message_to_chat`, `reply_to_sender`, `send_inbox_note`):**
+  - **ALL cross-project messages, technical inquiries, audit requests, and return receipts MUST ALWAYS be written in English.**
+  - **Rationale:** Inter-agent communication in English ensures universal model compatibility across different LLMs (Gemini, Claude, GPT), eliminates Windows-1252 / ASCII codepage mojibake errors, and guarantees technical precision.
+
 ---
 
 ## 5. 🛑 Anti-Looping & Token-Efficient Status Protocol

@@ -80,3 +80,8 @@ If an MCP tool (`send_message_to_chat`, `list_projects`, etc.) throws an error:
 2. **Report immediately:** Inform the user with the failure summary and provide the GitHub Issues link: `https://github.com/NyboTV/antigravity-bridge/issues`.
 3. **Provide technical diagnostics upon user request:** If asked, detail what failed, why, and the exact error output.
 4. **Conditional self-repair with breaking warning:** Offer the option for local repair ONLY with a prominent warning that attempting to fix the MCP server locally carries a high risk of breaking the plugin completely. Only proceed if the user explicitly consents.
+
+### 4. 🌐 Inter-Agent Language Standard: English ONLY
+- **User vs. Agent:** Discuss and present results to the user in their preferred language (e.g. German).
+- **Inter-Agent Payloads:** All cross-project messages dispatched via `send_message_to_chat`, `reply_to_sender`, and `send_inbox_note` **MUST ALWAYS be in English**.
+- This guarantees flawless cross-platform character encoding (eliminating Windows codepage / Mojibake glitches) and provides maximum clarity across all LLM backends.
