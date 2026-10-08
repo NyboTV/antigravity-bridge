@@ -44,6 +44,9 @@ In **Google Antigravity 2.0**, each project workspace operates in its own isolat
 
 ## 🚀 Quick Start & Installation
 
+### Prerequisites
+* **Python 3.9+** (Standard system installation, **zero** pip packages or virtual environment required).
+
 ### Option 1: Install as Antigravity Plugin (Recommended)
 
 Clone the repository directly into your Antigravity plugins directory:
@@ -110,11 +113,11 @@ Or run it interactively:
 Use this as the **very first prompt** in a new chat to configure it as an official project gateway dispatcher:
 
 ```text
-/communicate-start [optional: role/name, e.g. Backend, Frontend, DevOps]
+/communicate-start
 ```
 
 The agent immediately renders a zero-tool onboarding card containing:
-1. **Sidebar Renaming Guidance:** Instructs you to rename the chat tab in the Antigravity sidebar with the required `[Gateway] <Role>` prefix so other projects can find it.
+1. **Sidebar Renaming Guidance:** Instructs you to rename the chat tab in the Antigravity sidebar with the required `[Gateway] <Role>` prefix (e.g. `[Gateway] Backend`, `[Gateway] Frontend`, `[Gateway] General`) so other projects can automatically discover it.
 2. **User Best Practices:** Highlights key tips, such as keeping this chat exclusively for inter-agent communication (avoiding personal/manual coding tasks here) to maintain clean context and minimize token burn.
 3. **Agent Operating Contract:** Permanently binds the gateway agent to the mandatory return-receipt protocol (`reply_to_sender`) and workspace boundary protection.
 

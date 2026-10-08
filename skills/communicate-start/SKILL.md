@@ -26,16 +26,7 @@ This skill sets up the current conversation as an official **`[Gateway]` Dispatc
 
 ## 📋 Execution Protocol
 
-### Step 1: Detect Role (if provided in prompt)
-- Check if the user passed an optional role parameter with the slash command (e.g. `/communicate-start Backend`, `/communicate-start Caleb`, `/communicate-start DevOps`).
-- If provided, format the suggested title as **`[Gateway] <Name>`** (always guaranteeing the `[Gateway] ` prefix).
-- If not provided, suggest standard examples: `[Gateway] Backend`, `[Gateway] Frontend`, `[Gateway] DevOps`, or a custom name.
-
----
-
-### Step 2: Output the Gateway Onboarding Card
-
-Render the complete guide directly to the user and agent context (translate text to user's conversation language as appropriate):
+Immediately render the complete onboarding guide directly to the user and agent context (translate text to user's conversation language as appropriate):
 
 ```markdown
 ---
