@@ -5,58 +5,58 @@ description: Inter-Agent & Cross-Project Communication via antigravity-bridge MC
 
 # 🛰️ Inter-Project Communication Protocol (`/communicate`)
 
-Dieses Skill steuert die agenten- und projektübergreifende Kommunikation zwischen verschiedenen Arbeitsbereichen über den **`antigravity-bridge`** MCP-Server.
+This skill coordinates cross-project and inter-agent communication between different workspaces using the **`antigravity-bridge`** MCP server.
 
 ---
 
-## 🎯 Wann dieses Skill verwendet wird
-- Der Nutzer ruft explizit den Slash-Command **`/communicate`** auf.
-- Der Nutzer sagt Formulierungen wie:
-  - *„Sag Projekt X Bescheid, dass...“*
-  - *„Informiere Chat Y über...“*
-  - *„Gib dem Backend-Projekt die neue API durch“*
-  - *„Erstelle ein Ticket / eine Notiz in der Inbox von Projekt Z“*
-  - *„Antworte dem Absender-Chat mit einer Quittung“*
+## 🎯 When to Use This Skill
+- The user explicitly runs the slash command **`/communicate`**.
+- The user uses phrases such as:
+  - *"Tell Project X that..."*
+  - *"Notify Chat Y about..."*
+  - *"Send the new API specs to the backend project"*
+  - *"Create a task/note in Project Z's inbox"*
+  - *"Reply to the originating chat with a status receipt"*
 
 ---
 
-## 🛠️ Verfügbare MCP-Tools (`antigravity-bridge`)
+## 🛠️ Available MCP Tools (`antigravity-bridge`)
 
-Der MCP-Server `antigravity-bridge` stellt folgende Werkzeuge bereit:
+The `antigravity-bridge` MCP server provides the following tools:
 
-| Tool | Zweck |
+| Tool | Purpose |
 |---|---|
-| `list_projects` | Listet alle registrierten Projekte samt Pfaden, Chat-Statistiken und Inbox-Status auf. |
-| `list_project_chats` | Listet alle aktiven Chats eines Projekts aus der SQLite-DB auf (inkl. `[Gateway]` Kennzeichnung). |
-| `send_message_to_chat` | Sendet eine Nachricht direkt in einen Ziel-Chat und weckt diesen live auf (`agentapi send-message`). |
-| `reply_to_sender` | Sendet eine Quittung / Statusbericht an die `sender_chat_id` eines Auftraggebers zurück. |
-| `send_inbox_note` | Hängt eine strukturierte Aufgabe append-only in `.agents/INBOX.md` des Zielprojekts an. |
-| `archive_inbox_note` | Verschiebt einen bearbeiteten Inbox-Eintrag nach `.agents/INBOX_ARCHIVE.md`. |
+| `list_projects` | Lists all registered projects with local paths, chat metrics, and inbox status. |
+| `list_project_chats` | Lists active conversations for a project from SQLite DB (highlights `[Gateway]` chats). |
+| `send_message_to_chat` | Sends a message directly into a target conversation and wakes it up live (`agentapi send-message`). |
+| `reply_to_sender` | Sends an execution receipt or status update back to the `sender_chat_id`. |
+| `send_inbox_note` | Safely appends a structured task note (append-only) to `.agents/INBOX.md` in the target project. |
+| `archive_inbox_note` | Moves resolved tasks from `.agents/INBOX.md` to `.agents/INBOX_ARCHIVE.md`. |
 
 ---
 
-## 📋 Standard-Ablauf bei `/communicate`
+## 📋 Standard Workflow for `/communicate`
 
-### Schritt 1: Zielprojekt bestimmen
-- Hat der Nutzer das Zielprojekt bereits genannt (z. B. `/communicate ServerZentrum ...`), übernimm dieses direkt.
-- Ist das Zielprojekt unklar, rufe `list_projects` auf und zeige dem Nutzer die verfügbaren Projekte zur Auswahl.
+### Step 1: Identify Target Project
+- If the user already specified the project (e.g., `/communicate Backend ...`), select it directly.
+- If unspecified or ambiguous, call `list_projects` and present the available projects for selection.
 
-### Schritt 2: Kommunikationsmodus wählen (Live-Wakeup vs. Asynchrone Notiz)
-1. **Live-Aufgabe / Sofort-Wakeup (Echtzeit):**
-   - Rufe `list_project_chats(project_name=...)` auf.
-   - Falls ein Chat mit Präfix `[Gateway]` existiert (z. B. `[Gateway] Dispatcher`), wähle bevorzugt diesen oder präsentiere dem Nutzer die Chats als durchnummerierte Auswahlliste.
-   - Sende die Nachricht mit `send_message_to_chat(conversation_id=..., message=..., priority=...)`.
-   - Gib dem Nutzer eine Bestätigung mit Ziel-Chat und Status aus.
+### Step 2: Choose Communication Mode (Live Wakeup vs. Asynchronous Note)
+1. **Live Task / Immediate Wakeup (Real-time):**
+   - Call `list_project_chats(project_name=...)`.
+   - If a conversation with prefix `[Gateway]` exists (e.g. `[Gateway] Backend Dispatcher`), select it by default or present a numbered list of choices to the user.
+   - Send the message with `send_message_to_chat(conversation_id=..., message=..., priority=...)`.
+   - Provide a clean confirmation indicating target chat and status.
 
-2. **Asynchrone Notiz / Aufgabe für später (Inbox):**
-   - Wenn der Nutzer eine Notiz hinterlegen möchte oder der Ziel-Chat erst beim nächsten Prompt des Nutzers reagieren soll:
-   - Rufe `send_inbox_note(target_project=..., sender_project=..., message=..., priority=..., subject=...)` auf.
-   - Der Eintrag wird append-only in `.agents/INBOX.md` des Zielprojekts geschrieben.
+2. **Asynchronous Note / Deferred Task (Inbox):**
+   - If the user wants to leave a note or wants the target agent to handle it upon the next user turn:
+   - Call `send_inbox_note(target_project=..., sender_project=..., message=..., priority=..., subject=...)`.
+   - The note is appended safely to `.agents/INBOX.md` in the target project.
 
-3. **Rückmeldung an Absender (`reply_to_sender`):**
-   - Wurde dieser Chat zuvor von einem anderen Agenten beauftragt (enthält eine `sender_chat_id`), nutze `reply_to_sender`, um das Ergebnis zurückzumelden.
+3. **Receipt / Confirmation to Origin (`reply_to_sender`):**
+   - If this chat was triggered by an incoming task from another project (has a `sender_chat_id`), use `reply_to_sender` once the task is finished to notify the caller.
 
 ---
 
-## 🛑 Eiserne Sicherheitsregel
-- **Niemals fremden Code selbst editieren:** Wenn du in einem Projekt arbeitest und Änderungen in einem anderen Projekt erforderlich sind, ändere diese NIEMALS direkt im fremden Workspace ab. Verwende IMMER `/communicate` bzw. die `antigravity-bridge` MCP-Tools zur Delegation!
+## 🛑 Golden Isolation Guardrail
+- **Never edit foreign project code directly:** If you are working in one project workspace and changes are required in another repository, NEVER attempt to modify files outside your workspace directly. Always use `/communicate` or the `antigravity-bridge` MCP tools to delegate the task cleanly!

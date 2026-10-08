@@ -150,7 +150,7 @@ def tool_list_project_chats(project_name):
     gateway_chat = None
 
     for cid, title, pid, w_raw, updated in rows:
-        title_str = title or "Unbenannter Chat"
+        title_str = title or "Untitled Chat"
         is_gateway = "[gateway]" in title_str.lower()
         
         chat_item = {
@@ -182,11 +182,11 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
 
     header = (
         f"\n\n---"
-        f"\n🛰️ **[Antigravity-Bridge] Eingehende Nachricht**"
-        f"\n- **Absender-Projekt:** {sender_project}"
-        f"\n- **Absender-Chat-ID:** `{sender_chat_id}`"
-        f"\n- **Priorität:** {priority}"
-        f"\n- **Zeitpunkt:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"\n🛰️ **[Antigravity-Bridge] Incoming Cross-Project Message**"
+        f"\n- **Sender Project:** {sender_project}"
+        f"\n- **Sender Conversation ID:** `{sender_chat_id}`"
+        f"\n- **Priority:** {priority}"
+        f"\n- **Timestamp:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         f"\n---\n\n"
     )
     full_message = header + message
@@ -222,14 +222,14 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
 def tool_reply_to_sender(sender_chat_id, status_message, sender_project="Target"):
     """Sends an execution receipt or answer back to the originating chat."""
     if not sender_chat_id or sender_chat_id in ["Unknown", ""]:
-        return {"status": "error", "error": "Ungültige sender_chat_id übergeben."}
+        return {"status": "error", "error": "Invalid or missing sender_chat_id."}
 
     agentapi_cmd = find_agentapi()
     header = (
         f"\n\n---"
-        f"\n✅ **[Antigravity-Bridge] Rückmeldung / Quittung**"
-        f"\n- **Projekt:** {sender_project}"
-        f"\n- **Zeitpunkt:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"\n✅ **[Antigravity-Bridge] Execution Receipt / Response**"
+        f"\n- **Origin Project:** {sender_project}"
+        f"\n- **Timestamp:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         f"\n---\n\n"
     )
     full_reply = header + status_message
@@ -257,7 +257,7 @@ def tool_send_inbox_note(target_project, sender_project, subject, content, prior
     target_path = projects_dict.get(target_project)
     
     if not target_path or not os.path.exists(target_path):
-        return {"status": "error", "error": f"Projektpfad für '{target_project}' nicht gefunden."}
+        return {"status": "error", "error": f"Target project path for '{target_project}' not found."}
 
     agents_dir = os.path.join(target_path, ".agents")
     os.makedirs(agents_dir, exist_ok=True)
@@ -266,14 +266,14 @@ def tool_send_inbox_note(target_project, sender_project, subject, content, prior
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = f"""
 ---
-### 📩 Eingehende Nachricht
-- **Datum & Uhrzeit:** {timestamp}
-- **Absender-Projekt:** {sender_project}
-- **Absender-Chat-ID:** `{sender_chat_id}`
-- **Priorität:** {priority}
-- **Betreff:** {subject}
+### 📩 Incoming Message
+- **Timestamp:** {timestamp}
+- **Sender Project:** {sender_project}
+- **Sender Conversation ID:** `{sender_chat_id}`
+- **Priority:** {priority}
+- **Subject:** {subject}
 
-#### Inhalt:
+#### Content:
 {content.strip()}
 ---
 """
@@ -290,24 +290,24 @@ def tool_send_inbox_note(target_project, sender_project, subject, content, prior
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
-def tool_archive_inbox_note(project_name, note_subject, resolution="Erledigt"):
+def tool_archive_inbox_note(project_name, note_subject, resolution="Resolved"):
     """Archives a handled note from .agents/INBOX.md to .agents/INBOX_ARCHIVE.md."""
     projects_dict = discover_all_projects()
     target_path = projects_dict.get(project_name)
     if not target_path:
-        return {"status": "error", "error": f"Projekt '{project_name}' nicht gefunden."}
+        return {"status": "error", "error": f"Project '{project_name}' not found."}
 
     inbox_file = os.path.join(target_path, ".agents", "INBOX.md")
     archive_file = os.path.join(target_path, ".agents", "INBOX_ARCHIVE.md")
 
     if not os.path.exists(inbox_file):
-        return {"status": "error", "error": f"Keine INBOX.md vorhanden in {project_name}."}
+        return {"status": "error", "error": f"No INBOX.md found in {project_name}."}
 
     try:
         with open(inbox_file, "r", encoding="utf-8") as f:
             content = f.read()
 
-        blocks = re.split(r'\n(?=---\n### 📩 Eingehende Nachricht)', content)
+        blocks = re.split(r'\n(?=---\n### 📩 )', content)
         remaining_blocks = []
         archived_blocks = []
 
@@ -315,16 +315,16 @@ def tool_archive_inbox_note(project_name, note_subject, resolution="Erledigt"):
             if not b.strip():
                 continue
             if note_subject.lower() in b.lower():
-                archive_entry = b.strip() + f"\n- **Status:** {resolution} am {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                archive_entry = b.strip() + f"\n- **Status:** {resolution} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 archived_blocks.append(archive_entry)
             else:
                 remaining_blocks.append(b)
 
         if not archived_blocks:
-            return {"status": "not_found", "message": f"Keine Notiz mit Betreff '{note_subject}' gefunden."}
+            return {"status": "not_found", "message": f"No note matching subject '{note_subject}' found."}
 
         with open(inbox_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(remaining_blocks).strip() + "\n" if remaining_blocks else "# 📬 Inter-Agent INBOX\n\n*(Keine ungelesenen Nachrichten)*\n")
+            f.write("\n".join(remaining_blocks).strip() + "\n" if remaining_blocks else "# 📬 Inter-Agent INBOX\n\n*(No unread messages)*\n")
 
         with open(archive_file, "a", encoding="utf-8") as f:
             for ab in archived_blocks:
@@ -337,6 +337,7 @@ def tool_archive_inbox_note(project_name, note_subject, resolution="Erledigt"):
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
 
 TOOLS = [
     {
