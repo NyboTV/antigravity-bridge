@@ -6,6 +6,7 @@
 
 ## 1. 🔍 Mandatory Inbox Check on Every Prompt
 At the beginning of **EVERY** prompt or conversation turn:
+*(Ausnahme: Bei Befehlen wie `/communicate-start` entfällt der Inbox-Check zugunsten der sofortigen Anzeige des Rollen-Dialogs ohne Tools).*
 1. **Check for Inbox:** Verify if an `.agents/INBOX.md` file exists in the current project workspace root.
 2. **Immediate Stop on Incoming Message:** If `.agents/INBOX.md` contains an unread message block (`### 📩 Incoming Message` or `### 📩 Eingehende Nachricht`):
    - **Immediately pause** regular processing of the user's prompt.

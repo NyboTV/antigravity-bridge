@@ -10,44 +10,54 @@ This skill initializes and configures the current active conversation as an offi
 ---
 
 ## 🎯 When to Use
-- The user types **/communicate-start** as the very first prompt in a new chat.
+- The user types **/communicate-start** as the first prompt in a chat.
 - The user wants to register this chat as a dedicated dispatch gateway so other projects can find and wake it up.
 
 ---
 
-## 📋 Execution Steps
+## 🛑 STRICT RULE: ZERO PRE-FLIGHT EXPLORATION (Ask IMMEDIATELY)
+- **DO NOT run ANY inspection tools before asking the question.**
+- **DO NOT read or inspect MCP files, schemas, configs, or python scripts (e.g., `server.py`).**
+- **DO NOT check tool availability or explore directories.**
+- The `Conversation ID` is already provided statically in your context (`<user_information> -> Conversation ID:`). You do NOT need to discover or search for it.
+- **IMMEDIATE ACTION:** If the user has not already specified a role in their prompt, your **VERY FIRST ACTION MUST BE TO ASK THE QUESTION IMMEDIATELY** using `ask_question` (or direct text output). Zero delay, zero pre-flight steps.
 
-### Step 1: Identify Conversation Context
-- Detect the current `Conversation ID` from your runtime context.
+---
 
-### Step 2: Role Selection (`/grill-me` Style)
-If the user already specified the role (e.g. `/communicate-start Backend`), proceed directly to Step 3. Otherwise, present the 5 standardized options:
+## 📋 Execution Protocol
 
-```text
-Wie soll dieser Gateway-Chat heißen?
-1. [Gateway] Backend Dispatcher (API, Datenbank, Server-Logik)
-2. [Gateway] Frontend Dispatcher (Web-UI, Clients, Benutzeroberfläche)
-3. [Gateway] DevOps / Infra Dispatcher (VMs, Docker, Nginx/Caddy, Ports)
-4. [Gateway] QA & Tester Dispatcher (Tests, Audits, Verifikation)
-5. Eigener Name (z. B. "[Gateway] General Dispatcher" oder frei wählbar)
-```
+### Step 1: Immediate Prompting (First Turn)
+If the user already specified the role (e.g., `/communicate-start Backend`), skip directly to Step 2.
 
-*(Wait for the user's choice before renaming).*
+Otherwise, **immediately call `ask_question`** (or display the options):
+- Question: `Wie soll dieser Gateway-Chat für dieses Projekt heißen?`
+- Options:
+  1. `[Gateway] Backend Dispatcher (API, Datenbank, Server-Logik)`
+  2. `[Gateway] Frontend Dispatcher (Web-UI, Clients, Benutzeroberfläche)`
+  3. `[Gateway] DevOps / Infra Dispatcher (VMs, Docker, Nginx/Caddy, Ports)`
+  4. `[Gateway] QA & Tester Dispatcher (Tests, Audits, Verifikation)`
+  *(Option 5 "Other / Eigener Name" is automatically provided by the UI).*
 
-### Step 3: Auto-Prefix & Rename Conversation
-Once the user chooses an option or enters a custom name:
+**STOP HERE AND WAIT FOR USER SELECTION. Do not execute rename tools until the user responds.**
+
+---
+
+### Step 2: Auto-Prefix & Rename Conversation (Second Turn)
+Only **after** the user chooses an option or enters a custom name:
 1. **Mandatory Prefix Verification:**
    - Inspect the provided name.
    - Check if it starts with `[Gateway]` (case-insensitive, e.g. `[gateway]`, `gateway`, `[GATEWAY]`).
    - If the `[Gateway] ` prefix is missing, **automatically prepend `[Gateway] `** (e.g. user writes `Server Coordinator` -> convert to `[Gateway] Server Coordinator`).
    - Always ensure the final string follows the standardized format: `[Gateway] <Name>`.
 2. **Execute Database Rename:**
+   - Extract the `conversation_id` directly from `<user_information>`.
    - Call the MCP tool:
-     `rename_chat(conversation_id="<current_id>", new_title="[Gateway] <Formatted Name>")`
+     `call_mcp_tool(ServerName="antigravity-bridge", ToolName="rename_chat", Arguments={"conversation_id": "<current_id>", "new_title": "[Gateway] <Formatted Name>"})`
    - Antigravity's SQLite database updates immediately, reflecting the new title in the project sidebar.
 
+---
 
-### Step 4: Output the Gateway Operating Contract
+### Step 3: Output the Gateway Operating Contract
 Output an affirmative confirmation and reinforce the binding rules:
 
 ```markdown
