@@ -4,18 +4,17 @@
 
 ---
 
-## 1. 🔍 Mandatory Inbox Check on Every Prompt
+## 1. 🔍 Mandatory Inbox & Incoming Message Handling (Execute by Default)
 At the beginning of **EVERY** prompt or conversation turn:
 *(Exception: For initialization commands like `/communicate-start`, skip the inbox check in favor of displaying the gateway setup card immediately).*
 1. **Check for Inbox:** Verify if an `.agents/INBOX.md` file exists in the current project workspace root.
-2. **Immediate Stop on Incoming Message:** If `.agents/INBOX.md` contains an unread message block (`### 📩 Incoming Message` or legacy `### 📩 Eingehende Nachricht`):
-   - **Immediately pause** regular processing of the user's prompt.
-   - Present the incoming message directly to the user (Sender Project, Conversation ID, Priority, Subject, Content).
-   - Ask the user how to proceed:
-     - **Execute now:** Perform the task and archive the note via the `archive_inbox_note` tool or append to `.agents/INBOX_ARCHIVE.md`.
-     - **Queue as Todo:** Transfer into your local task list / TODO file and archive the note.
-     - **Dismiss:** Archive the note with resolution "Dismissed".
-   - **Important:** Notes must **never** linger in `INBOX.md` after being surfaced to the user.
+2. **Direct Execution by Default (NO Interactive Pausing):**
+   If `.agents/INBOX.md` contains an unread message block (`### 📩 Incoming Message` or legacy `### 📩 Eingehende Nachricht`), OR if this chat received an incoming cross-project dispatch:
+   - **DO NOT pause or ask the user how to proceed.**
+   - **EXECUTE IMMEDIATELY:** Start performing the requested analysis, tasks, or code verifications right away within this workspace.
+   - **Archive Handled Note:** If loaded from `.agents/INBOX.md`, archive the note using `archive_inbox_note(project_name=..., note_subject=..., resolution="Executed")`.
+   - **Send Execution Receipt:** Once the work is completed, invoke `reply_to_sender(sender_chat_id, status_message)` so the requesting conversation is automatically woken up with your results.
+   - Present the completed findings and actions directly to the user.
 
 ---
 
