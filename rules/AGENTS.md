@@ -4,21 +4,31 @@
 
 ---
 
-## 1. 🔍 Mandatory Inbox & Incoming Message Handling (Execute by Default)
-At the beginning of **EVERY** prompt or conversation turn:
-*(Exception: For initialization commands like `/communicate-start`, skip the inbox check in favor of displaying the gateway setup card immediately).*
-1. **Check for Inbox:** Verify if an `.agents/INBOX.md` file exists in the current project workspace root.
-2. **Direct Execution by Default (NO Interactive Pausing):**
-   If `.agents/INBOX.md` contains an unread message block (`### 📩 Incoming Message` or legacy `### 📩 Eingehende Nachricht`), OR if this chat received an incoming cross-project dispatch:
-   - **DO NOT pause or ask the user how to proceed.**
-   - **EXECUTE IMMEDIATELY:** Start performing the requested analysis, tasks, or code verifications right away within this workspace.
-   - **Archive Handled Note:** If loaded from `.agents/INBOX.md`, archive the note using `archive_inbox_note(project_name=..., note_subject=..., resolution="Executed")`.
-   - **Send Execution Receipt:** Once the work is completed, invoke `reply_to_sender(sender_chat_id, status_message)` so the requesting conversation is automatically woken up with your results.
-   - Present the completed findings and actions directly to the user.
+## 1. ⚡ Live Incoming Cross-Project Messages (Direct Execution — NO Asking!)
+When this chat receives a message from another project (indicated by the header `🛰️ **[Antigravity-Bridge] Incoming Cross-Project Message**`):
+- **EXECUTE IMMEDIATELY BY DEFAULT:** Start working on the requested analysis, tasks, questions, or verifications right away within this workspace.
+- **🚫 ABSOLUTE BAN ON INTERACTIVE PAUSING:** 
+  - **DO NOT** pause or ask the user how to proceed.
+  - **DO NOT** ask: *"Wie möchtest du verfahren? 1. Jetzt ausführen 2. Als To-Do vormerken 3. Verwerfen"*.
+  - Treat the incoming message as a high-priority prompt to be fulfilled immediately and autonomously.
+- **⚠️ Mandatory Return Receipt (`reply_to_sender`):**
+  Once the requested task or investigation is finished, you **MUST** call `reply_to_sender(sender_chat_id=..., status_message=...)` with your findings or status. This automatically wakes up the originating conversation.
+- Present the completed findings and actions taken directly in this chat.
 
 ---
 
-## 2. 🛡️ Workspace Boundary Protection & Strict Plugin Immutability
+## 2. 📬 Asynchronous Project Inbox (`.agents/INBOX.md` — Offline Tickets Only)
+The file `.agents/INBOX.md` is strictly an offline fallback queue for when a project had no active chat or when a user explicitly queued a task for later.
+- **Separation:** Live incoming chat messages are **NOT** inbox notes and do not require reading or modifying `.agents/INBOX.md`.
+- **Handling Offline Notes:** If you are explicitly instructed to check the inbox or process pending offline notes:
+  1. Inspect `.agents/INBOX.md` for unhandled note blocks (`### 📩 Incoming Message`).
+  2. Execute the requested task in this workspace.
+  3. Archive the handled note via `archive_inbox_note(project_name=..., note_subject=..., resolution="Executed")`.
+  4. If a `sender_chat_id` is present, notify the sender via `reply_to_sender(sender_chat_id, status_message)`.
+
+---
+
+## 3. 🛡️ Workspace Boundary Protection & Strict Plugin Immutability
 - **Never touch foreign code:** If your current task requires code modifications, service restarts, or database updates in a different repository or workspace, **never** modify foreign files directly.
 - **🚫 ABSOLUTE BAN ON AUTONOMOUS MODIFICATION OF PLUGINS & MCP SERVERS:**
   Agents MUST NEVER autonomously inspect, edit, modify, patch, or debug files located in `~/.gemini/` (including `~/.gemini/config/plugins/`, `~/.gemini/antigravity/mcp_servers/`, rules, or skills).
@@ -36,7 +46,7 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ---
 
-## 3. ⚡ Live Wakeup vs. Asynchronous Inbox (Strict Decision Rule)
+## 4. ⚡ Outgoing Cross-Project Communication (Live Wakeup vs. Asynchronous Inbox)
 
 ### 🔴 Default Mode: Live Wakeup (`send_message_to_chat`)
 - Whenever the user asks you to consult, coordinate, discuss, or contact another project:
@@ -68,7 +78,7 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ---
 
-## 4. 🛑 Anti-Looping & Token-Efficient Status Protocol
+## 5. 🛑 Anti-Looping & Token-Efficient Status Protocol
 
 ### 🚫 Strict Ban on Second-by-Second Polling
 - **NEVER poll in a tight loop or check status every second.** Polling burns massive tokens and clogs the session.

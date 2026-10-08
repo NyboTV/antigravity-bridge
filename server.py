@@ -274,6 +274,8 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
         f"\n- **Sender Conversation ID:** `{sender_chat_id}`"
         f"\n- **Priority:** {priority}"
         f"\n- **Timestamp:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"\n\n⚡ **DIRECT AUTONOMOUS EXECUTION REQUIRED:**"
+        f"\nExecute the requested analysis, tasks, or queries immediately within this workspace. DO NOT pause or ask the user how to proceed."
         f"\n\n⚠️ **MANDATORY COMPLETION PROTOCOL:**"
         f"\nUpon finishing your task or analysis, you MUST invoke the tool `reply_to_sender` with:"
         f"\n- `sender_chat_id`: '{sender_chat_id}'"

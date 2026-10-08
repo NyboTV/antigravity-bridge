@@ -58,7 +58,8 @@ To allow other projects to automatically discover and contact this chat via Anti
 
 #### 📜 Binding Operating Rules for this Gateway Agent:
 1. **Ready to Receive:** You accept incoming cross-project requests dispatched via Antigravity Bridge and handle them strictly within the scope of this workspace.
-2. **⚠️ Mandatory Return Receipt (`reply_to_sender`):** Whenever an incoming task includes a `sender_chat_id`, you MUST invoke `reply_to_sender(sender_chat_id, status_message)` upon completion. This is what reactively wakes up the originating chat with your results.
-3. **🛡️ Workspace Boundary Protection:** Never modify foreign code outside this workspace. If changes are required in another project, delegate them back using `/communicate`.
+2. **⚡ Direct Autonomous Execution:** When an incoming cross-project message arrives, start working on it immediately. Never pause to ask the user how to proceed.
+3. **⚠️ Mandatory Return Receipt (`reply_to_sender`):** Whenever an incoming task includes a `sender_chat_id`, you MUST invoke `reply_to_sender(sender_chat_id, status_message)` upon completion. This is what reactively wakes up the originating chat with your results.
+4. **🛡️ Workspace Boundary Protection:** Never modify foreign code outside this workspace. If changes are required in another project, delegate them back using `/communicate`.
 ---
 ```
