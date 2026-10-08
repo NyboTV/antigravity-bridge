@@ -20,5 +20,29 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ## 2. 🛡️ Workspace Boundary Protection & Delegation
 - **Never touch foreign code:** If your current task requires code modifications, service restarts, or database updates in a different repository or workspace, **never** modify foreign files directly.
-- **Always delegate:** Use the `/communicate` slash command or the `antigravity-bridge` MCP server (`send_message_to_chat` for live gateway wakeup, or `send_inbox_note` for asynchronous queued tasks).
+- **Always delegate:** Use the `/communicate` slash command or the `antigravity-bridge` MCP server.
 - **Execution Receipts:** If this conversation was woken up with a `sender_chat_id`, send a completion confirmation back using the `reply_to_sender` tool once the requested work is complete.
+
+---
+
+## 3. ⚡ Live Wakeup vs. Asynchronous Inbox (Strict Decision Rule)
+
+### 🔴 Default Mode: Live Wakeup (`send_message_to_chat`)
+- Whenever the user asks you to consult, coordinate, discuss, or contact another project:
+  *(e.g., "abstimmen", "kontaktieren", "besprechen", "frag nach", "sag Bescheid", "jetzt", "live")*
+- **DO NOT write an inbox note!**
+- **Action:**
+  1. Call `list_project_chats(project_name=...)` to find the target's `[Gateway]` chat (or active chat).
+  2. Immediately send the message via `send_message_to_chat(conversation_id=..., message=..., priority="Normal"|"Dringend", sender_project=..., sender_chat_id=...)`.
+
+### 🟡 Secondary Mode: Asynchronous Inbox (`send_inbox_note`)
+- Use `send_inbox_note` **ONLY** if:
+  1. The user explicitly asks for a note/ticket: *(e.g., "Notiz hinterlegen", "in die Inbox schreiben", "für später merken", "als Todo eintragen")*.
+  2. OR if `list_project_chats` finds no active chats in the target project.
+
+### 🚫 Strict Ban on "Test" Messages & Exploratory Pings
+- **NEVER** send "Test", "Ping", "Hallo", "Bist du da?", or hesitation probing.
+- **ALWAYS** include the complete, substantive technical payload directly in your first message:
+  - Context & background of the issue.
+  - Concrete technical details (APIs, parameters, database schemas, crediting logic, etc.).
+  - The exact question or decision requested from the target project.

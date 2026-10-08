@@ -1,6 +1,6 @@
 ---
 name: communicate
-description: Inter-Agent & Cross-Project Communication via antigravity-bridge MCP. Triggered by the /communicate slash command or when the user wants to dispatch tasks, send messages to other project chats, query other projects, or append notes to an inbox.
+description: Inter-Agent & Cross-Project Communication via antigravity-bridge MCP. Triggered by the /communicate slash command or when the user wants to dispatch tasks, coordinate, discuss, send messages to other project chats, query other projects, or append notes to an inbox.
 ---
 
 # 🛰️ Inter-Project Communication Protocol (`/communicate`)
@@ -11,18 +11,16 @@ This skill coordinates cross-project and inter-agent communication between diffe
 
 ## 🎯 When to Use This Skill
 - The user explicitly runs the slash command **`/communicate`**.
-- The user uses phrases such as:
-  - *"Tell Project X that..."*
-  - *"Notify Chat Y about..."*
+- The user asks to coordinate or talk with another project:
+  - *"Stimm dich mit ServerZentrum ab..."* / *"Sprich mit Projekt X ab..."*
+  - *"Kontaktiere Caleb..."* / *"Frag Gamebot nach..."*
+  - *"Tell Project X that..."* / *"Notify Chat Y about..."*
   - *"Send the new API specs to the backend project"*
   - *"Create a task/note in Project Z's inbox"*
-  - *"Reply to the originating chat with a status receipt"*
 
 ---
 
 ## 🛠️ Available MCP Tools (`antigravity-bridge`)
-
-The `antigravity-bridge` MCP server provides the following tools:
 
 | Tool | Purpose |
 |---|---|
@@ -35,28 +33,32 @@ The `antigravity-bridge` MCP server provides the following tools:
 
 ---
 
-## 📋 Standard Workflow for `/communicate`
+## 📋 Execution Protocol for `/communicate`
 
-### Step 1: Identify Target Project
-- If the user already specified the project (e.g., `/communicate Backend ...`), select it directly.
-- If unspecified or ambiguous, call `list_projects` and present the available projects for selection.
+### Step 1: Target Discovery
+- Identify the target project (e.g., `ServerZentrum`, `Nyeo`, `Gamebot-Systems`, `Anwalt`). If ambiguous, run `list_projects`.
 
-### Step 2: Choose Communication Mode (Live Wakeup vs. Asynchronous Note)
-1. **Live Task / Immediate Wakeup (Real-time):**
-   - Call `list_project_chats(project_name=...)`.
-   - If a conversation with prefix `[Gateway]` exists (e.g. `[Gateway] Backend Dispatcher`), select it by default or present a numbered list of choices to the user.
-   - Send the message with `send_message_to_chat(conversation_id=..., message=..., priority=...)`.
-   - Provide a clean confirmation indicating target chat and status.
-
-2. **Asynchronous Note / Deferred Task (Inbox):**
-   - If the user wants to leave a note or wants the target agent to handle it upon the next user turn:
-   - Call `send_inbox_note(target_project=..., sender_project=..., message=..., priority=..., subject=...)`.
-   - The note is appended safely to `.agents/INBOX.md` in the target project.
-
-3. **Receipt / Confirmation to Origin (`reply_to_sender`):**
-   - If this chat was triggered by an incoming task from another project (has a `sender_chat_id`), use `reply_to_sender` once the task is finished to notify the caller.
+### Step 2: Mode Selection (Live Wakeup is DEFAULT)
+- **DEFAULT: Live Chat Wakeup (`send_message_to_chat`)**
+  - Always use this when the user says: *abstimmen, kontaktieren, besprechen, fragen, klären, jetzt, live, sofort*.
+  - Call `list_project_chats(project_name=...)`.
+  - Automatically pick the `recommended_gateway_chat` (or first active chat).
+  - Immediately send the full technical payload.
+- **SECONDARY: Asynchronous Inbox (`send_inbox_note`)**
+  - Use ONLY if the user explicitly says: *Notiz hinterlegen, in die Inbox schreiben, für später, als Todo eintragen*.
+  - Or if no active chats exist in the target project.
 
 ---
 
-## 🛑 Golden Isolation Guardrail
-- **Never edit foreign project code directly:** If you are working in one project workspace and changes are required in another repository, NEVER attempt to modify files outside your workspace directly. Always use `/communicate` or the `antigravity-bridge` MCP tools to delegate the task cleanly!
+## 🚫 Crucial Guardrails
+
+### 1. NO "Test" Pings or Exploratory Probing
+- **DO NOT** send "Test", "Hallo", "Ping", or "Bist du da?".
+- **ALWAYS** transmit the complete technical inquiry in your first dispatch:
+  1. The background context of the problem.
+  2. Concrete technical details (APIs, parameters, database schemas, crediting logic, etc.).
+  3. The specific questions or architectural decisions needed from the target project.
+  4. Always pass `sender_chat_id` and `sender_project`.
+
+### 2. Never Edit Foreign Code Directly
+- Never touch files outside your active project workspace. Always delegate cross-project requirements via `/communicate` and `antigravity-bridge`.
