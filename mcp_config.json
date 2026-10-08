@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "antigravity-bridge": {
+      "command": "python",
+      "args": [
+        "${extensionPath}/server.py"
+      ]
+    }
+  }
+}

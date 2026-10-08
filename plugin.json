@@ -1,0 +1,26 @@
+{
+  "name": "antigravity-bridge",
+  "displayName": "Antigravity Bridge & Inter-Agent Dispatcher",
+  "version": "1.0.0",
+  "description": "Cross-project and inter-agent communication for Google Antigravity 2.0. Wake up chats across workspaces, delegate tasks, and manage project inboxes with the /communicate command.",
+  "author": {
+    "name": "nybotv"
+  },
+  "repository": "https://github.com/nybotv/antigravity-bridge",
+  "license": "MIT",
+  "suggestedPrompts": [
+    "/communicate Check other project chats and dispatch pending tasks",
+    "/communicate Ask ServerZentrum to verify the VM infrastructure",
+    "List all available project gateway chats across my workspaces"
+  ],
+  "keywords": [
+    "antigravity",
+    "mcp",
+    "multi-agent",
+    "cross-project",
+    "communicate",
+    "inbox",
+    "inter-agent",
+    "gemini"
+  ]
+}

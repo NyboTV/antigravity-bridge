@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "antigravity-bridge"
+version = "1.0.0"
+description = "Multi-agent & cross-project communication MCP server for Google Antigravity 2.0"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "nybotv" }
+]
+keywords = ["antigravity", "mcp", "model-context-protocol", "multi-agent", "gemini"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+
+[project.scripts]
+antigravity-bridge = "server:main"
+
+[project.urls]
+Homepage = "https://github.com/nybotv/antigravity-bridge"
+Repository = "https://github.com/nybotv/antigravity-bridge.git"
+Issues = "https://github.com/nybotv/antigravity-bridge/issues"
