@@ -149,6 +149,35 @@ The bridge automatically detects `[Gateway]` in conversation titles and routes c
 
 ---
 
+## ⚠️ LLM Edge Cases, Limitations & Watchdog Architecture
+
+While the underlying transport (`agentapi` & SQLite) is 100% deterministic, **LLM-driven agents are probabilistic**. In real-world multi-agent coordination, language models can occasionally fail or halt. Understanding these failure modes and how Antigravity Bridge mitigates them is critical:
+
+### 1. The "Forgotten Receipt" (Tool Call Omission)
+* **Risk:** The LLM in Target Chat B answers the question or completes the code, but simply finishes its turn with plain text instead of calling the required `reply_to_sender` tool. If Chat A waited blindly, it would sleep forever.
+* **Mitigation:**
+  1. **Prompt-Level Enforcement:** Every dispatched message injects an unmissable `⚠️ MANDATORY COMPLETION PROTOCOL` banner at the top of the prompt.
+  2. **5-Minute Watchdog Timeout:** Chat A does not sleep forever. If no receipt arrives after 5 minutes, Chat A checks `get_chat_status(conversation_id)`. If Chat B is `IDLE`, Chat A alerts the user that Chat B has completed without a formal receipt.
+
+### 2. Mid-Flight Human Interruption
+* **Risk:** If the human user types a new message in Chat B while Chat B is currently processing a task from Chat A, Antigravity cancels or supersedes the active turn. Chat B will never reach the `reply_to_sender` call.
+* **Mitigation:** The 5-minute watchdog catches the transition to `IDLE` and alerts Chat A.
+
+### 3. Context Window Saturation & Compaction
+* **Risk:** If a target chat has been running for days and accumulated hundreds of thousands of tokens, an incoming dispatch might push it into context truncation or sluggish processing.
+* **Mitigation:** **Use dedicated `[Gateway]` chats.** Treat gateway chats as lean orchestrators rather than giant monolithic scratchpads. Clear or recreate them if they grow too large.
+
+### 4. Unhandled Tool Crashes & Shell Failures
+* **Risk:** If Chat B executes a command that times out, throws a fatal syntax error, or halts execution, the turn terminates prematurely before reaching the return receipt.
+* **Mitigation:** `get_chat_status` queries the SQLite database directly, allowing Chat A to see whether Chat B is still `RUNNING` or halted in `IDLE`.
+
+### 5. "Passive Procrastination" (Inbox Over-Reliance)
+* **Risk:** Without strict guidance, LLMs naturally prefer passive notes over active real-time communication because it feels "safer".
+* **Mitigation:** The plugin's always-on `rules/AGENTS.md` explicitly forbids writing to `.agents/INBOX.md` when coordination or live answers are requested, and bans meaningless "Test" pings.
+
+---
+
 ## 📄 License
 
 MIT License © 2026 [nybotv](https://github.com/nybotv)
+

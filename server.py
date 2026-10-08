@@ -213,6 +213,11 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
         f"\n- **Sender Conversation ID:** `{sender_chat_id}`"
         f"\n- **Priority:** {priority}"
         f"\n- **Timestamp:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"\n\n⚠️ **MANDATORY COMPLETION PROTOCOL:**"
+        f"\nUpon finishing your task or analysis, you MUST invoke the tool `reply_to_sender` with:"
+        f"\n- `sender_chat_id`: '{sender_chat_id}'"
+        f"\n- `status_message`: Summary of actions taken, decisions, or answers."
+        f"\nThis automatically wakes up and notifies the originating conversation."
         f"\n---\n\n"
     )
     full_message = header + message

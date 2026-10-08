@@ -63,3 +63,8 @@ At the beginning of **EVERY** prompt or conversation turn:
    - You do NOT need to stay awake! When the target chat finishes and calls `reply_to_sender`, Antigravity will automatically wake you up with the results.
 3. **If Periodic Monitoring is required:**
    - If monitoring is explicitly requested, check at most **once every 30 seconds** using `get_chat_status` — NEVER faster.
+4. **🛡️ 5-Minute Watchdog Timeout (Fall-Back Safety Net):**
+   - If no `reply_to_sender` receipt has arrived after 5 minutes, inspect `get_chat_status(conversation_id=...)`:
+     - **If IDLE:** The target chat finished its execution turn but omitted calling `reply_to_sender` (e.g., interrupted by user, hit context limit, or forgot the tool call). Inform the user immediately: *„Target chat has finished (IDLE) without sending a return receipt. Please check the target conversation directly.“*
+     - **If RUNNING:** The target chat is actively computing a complex, long-running task. Inform the user and continue waiting.
+
