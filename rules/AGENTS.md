@@ -21,9 +21,17 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ## 2. 🛡️ Workspace Boundary Protection & Strict Plugin Immutability
 - **Never touch foreign code:** If your current task requires code modifications, service restarts, or database updates in a different repository or workspace, **never** modify foreign files directly.
-- **🚫 ABSOLUTE BAN ON MODIFYING PLUGINS & MCP SERVERS:**
-  Agents MUST NEVER inspect, edit, modify, patch, or debug files located in `~/.gemini/` (including `~/.gemini/config/plugins/`, `~/.gemini/antigravity/mcp_servers/`, rules, or skills).
-  If an MCP tool fails or returns an error, **NEVER** attempt to self-repair or reverse-engineer the plugin! Simply inform the user of the error or fall back to an asynchronous inbox note (`send_inbox_note`).
+- **🚫 ABSOLUTE BAN ON AUTONOMOUS MODIFICATION OF PLUGINS & MCP SERVERS:**
+  Agents MUST NEVER autonomously inspect, edit, modify, patch, or debug files located in `~/.gemini/` (including `~/.gemini/config/plugins/`, `~/.gemini/antigravity/mcp_servers/`, rules, or skills).
+- **🚨 MCP Failure & Error Protocol:**
+  If an MCP tool fails or throws an unhandled error:
+  1. **Acknowledge and Report Failure Immediately:** Stop execution and inform the user that the operation failed. Provide a brief error summary and direct the user to report it:
+     > *"Antigravity Bridge encountered an error. Please report this issue on GitHub: https://github.com/NyboTV/antigravity-bridge/issues"*
+  2. **Provide Full Technical Details on Demand:** If the user asks for details, explain the exact technical breakdown: which tool failed, what parameters were passed, the exact error code/stderr, and probable cause.
+  3. **Optional User-Authorized Self-Repair Proposal (Strictly Conditional):**
+     Offer the user the option to attempt a local fix, but **ONLY** accompanied by this explicit, mandatory warning:
+     > ⚠️ **CAUTION:** Allowing the agent to inspect or patch the MCP server carries a high risk of completely breaking the plugin and cross-project communication setup. Proceed only if you want experimental local debugging instead of an official GitHub report.
+     The agent MUST NOT touch any plugin files unless the user explicitly commands: *"Yes, attempt local repair"*.
 - **Always delegate:** Use the `/communicate` slash command or the `antigravity-bridge` MCP server.
 - **Execution Receipts:** If this conversation was woken up with a `sender_chat_id`, send a completion confirmation back using the `reply_to_sender` tool once the requested work is complete.
 

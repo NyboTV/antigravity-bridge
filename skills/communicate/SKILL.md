@@ -72,3 +72,10 @@ This skill coordinates cross-project and inter-agent communication between diffe
 
 ### 2. Never Edit Foreign Code Directly
 - Never touch files outside your active project workspace. Always delegate cross-project requirements via `/communicate` and `antigravity-bridge`.
+
+### 3. Tool Failure & Error Protocol
+If an MCP tool (`send_message_to_chat`, `list_projects`, etc.) throws an error:
+1. **Never attempt autonomous self-repair:** DO NOT modify, inspect, or patch files in `~/.gemini/config/plugins/` or MCP servers.
+2. **Report immediately:** Inform the user with the failure summary and provide the GitHub Issues link: `https://github.com/NyboTV/antigravity-bridge/issues`.
+3. **Provide technical diagnostics upon user request:** If asked, detail what failed, why, and the exact error output.
+4. **Conditional self-repair with breaking warning:** Offer the option for local repair ONLY with a prominent warning that attempting to fix the MCP server locally carries a high risk of breaking the plugin completely. Only proceed if the user explicitly consents.
