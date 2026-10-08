@@ -54,6 +54,7 @@ This skill coordinates cross-project and inter-agent communication between diffe
 ### Step 3: Token-Efficient Status Check & Reactive Wait
 - **Initial Verification (15s):** After dispatching the message, verify **once** after ~15 seconds with `get_chat_status(conversation_id=...)` that the target chat picked up the work (`RUNNING`).
 - **End Turn & Wait for Receipt:** Once verified, inform the user and **finish your turn (stop calling tools)**.
+- **🔔 MCP Approval Alert:** Always advise the user to check the target chat tab: If Antigravity security policies in that workspace require interactive approval for MCP tools or shell access (especially on first use), the target agent may pause waiting for user confirmation.
 - **No Active Loop:** DO NOT loop or poll every second! The target chat will automatically call `reply_to_sender` when done, which reactively wakes up this conversation with zero token burn while waiting.
 - **5-Minute Watchdog Timeout:** If no receipt has arrived after 5 minutes, run `get_chat_status(conversation_id)`. If `IDLE`, alert the user that the target chat finished without sending a receipt. If still `RUNNING`, continue waiting.
 - If monitoring is explicitly requested, poll at most **once every 30 seconds**.

@@ -76,6 +76,11 @@ The file `.agents/INBOX.md` is strictly an offline fallback queue for when a pro
   - Dispatch only once the user confirms or if the task matches a gateway's specialized role 100%.
 - If only a single Gateway chat exists (`has_multiple_gateways: false`), dispatch immediately without unnecessary asking.
 
+### 🔔 Mandatory User Alert: First-Time MCP Permissions & Gateway Monitoring
+- Whenever you dispatch a message to another project via `send_message_to_chat`, **ALWAYS alert the user**:
+  - Remind them that depending on Antigravity's security settings in that workspace, the target Gateway chat may require **manual user approval** for MCP tools, bash commands, or file access (especially on first contact).
+  - Explicitly ask the user to keep an eye on the target chat tab to grant any pending permissions so the remote agent is not blocked.
+
 ---
 
 ## 5. 🛑 Anti-Looping & Token-Efficient Status Protocol
@@ -88,7 +93,7 @@ The file `.agents/INBOX.md` is strictly an offline fallback queue for when a pro
 1. **Initial Verification (after ~15s):**
    - After calling `send_message_to_chat`, check the target chat's status **once** after 15 seconds using `get_chat_status(conversation_id=...)` to confirm it accepted the prompt (`execution_state: "RUNNING"` or step count progressed).
 2. **Reactive Sleep (Preferred):**
-   - Once verified that the target chat is running, inform the user and **end your turn (stop calling tools)**.
+   - Once verified that the target chat is running, inform the user (including the MCP approval reminder to watch the target tab) and **end your turn (stop calling tools)**.
    - You do NOT need to stay awake! When the target chat finishes and calls `reply_to_sender`, Antigravity will automatically wake you up with the results.
 3. **If Periodic Monitoring is required:**
    - If monitoring is explicitly requested, check at most **once every 30 seconds** using `get_chat_status` — NEVER faster.

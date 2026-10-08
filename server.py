@@ -291,7 +291,8 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
                 "status": "success",
                 "conversation_id": conversation_id,
                 "message_dispatched": True,
-                "output": proc.stdout.strip()
+                "output": proc.stdout.strip(),
+                "user_reminder": "IMPORTANT: Remind the user to keep an eye on the target chat tab! If this is the first contact or if tool permissions are not set to auto-approve, the target Gateway agent may pause waiting for manual user confirmation of MCP tools or workspace access before it can execute."
             }
         else:
             return {

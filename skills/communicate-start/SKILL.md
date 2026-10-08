@@ -53,6 +53,8 @@ To allow other projects to automatically discover and contact this chat via Anti
    An uncluttered chat preserves context tokens and ensures the gateway agent has maximum context window available for incoming cross-project tasks.
 3. **Multi-Gateway Support:**  
    You can create multiple specialized gateways per project (e.g. `[Gateway] Backend` and `[Gateway] Frontend`). When another project dispatches a task, the bridge will automatically let them select the relevant specialist.
+4. **🔔 MCP Permissions & Security Approvals:**  
+   Depending on your Antigravity security settings, the first time this Gateway executes tools or shell commands, Antigravity may ask for manual confirmation. Watch this chat tab during initial tasks to grant permissions promptly and prevent tasks from stalling.
 
 ---
 
