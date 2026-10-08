@@ -106,23 +106,17 @@ Or run it interactively:
 3. If multiple gateways exist, you'll be prompted with a clean numbered choice list (`/grill-me` style).
 4. Select the target chat and confirm the message.
 
-### 2. `/communicate-start` — Setup & Register New Gateway Chats
-Use this as the **very first prompt** in a new chat to turn it into an official project dispatcher:
+### 2. `/communicate-start` — Gateway Onboarding & Registration
+Use this as the **very first prompt** in a new chat to configure it as an official project gateway dispatcher:
 
 ```text
-/communicate-start
+/communicate-start [optional: role/name, e.g. Backend, Frontend, DevOps]
 ```
 
-The agent immediately prompts you with standardized roles:
-```text
-How would you like to name this Gateway chat?
-1. [Gateway] Backend Dispatcher (API, Database, Server logic)
-2. [Gateway] Frontend Dispatcher (Web UI, Clients, Components)
-3. [Gateway] DevOps / Infra Dispatcher (VMs, Docker, Nginx/Caddy, Ports)
-4. [Gateway] QA & Tester Dispatcher (Tests, Audits, Verification)
-5. Custom Name (e.g. "Caleb" or custom write-in)
-```
-Once chosen, the agent automatically ensures the mandatory `[Gateway] <Name>` prefix formatting, outputs the exact standardized title for quick renaming in the Antigravity sidebar, and locks in the binding gateway operational contract!
+The agent immediately renders a zero-tool onboarding card containing:
+1. **Sidebar Renaming Guidance:** Instructs you to rename the chat tab in the Antigravity sidebar with the required `[Gateway] <Role>` prefix so other projects can find it.
+2. **User Best Practices:** Highlights key tips, such as keeping this chat exclusively for inter-agent communication (avoiding personal/manual coding tasks here) to maintain clean context and minimize token burn.
+3. **Agent Operating Contract:** Permanently binds the gateway agent to the mandatory return-receipt protocol (`reply_to_sender`) and workspace boundary protection.
 
 ---
 
