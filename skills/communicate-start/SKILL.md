@@ -34,12 +34,18 @@ Wie soll dieser Gateway-Chat heißen?
 
 *(Wait for the user's choice before renaming).*
 
-### Step 3: Rename Conversation
-Once the user chooses an option or provides a custom name:
-1. Ensure the title starts with the prefix **`[Gateway] `**.
-2. Call the MCP tool:
-   `rename_chat(conversation_id="<current_id>", new_title="[Gateway] <Name>")`
-3. Antigravity's SQLite database updates immediately, reflecting the new title in the project sidebar.
+### Step 3: Auto-Prefix & Rename Conversation
+Once the user chooses an option or enters a custom name:
+1. **Mandatory Prefix Verification:**
+   - Inspect the provided name.
+   - Check if it starts with `[Gateway]` (case-insensitive, e.g. `[gateway]`, `gateway`, `[GATEWAY]`).
+   - If the `[Gateway] ` prefix is missing, **automatically prepend `[Gateway] `** (e.g. user writes `Server Coordinator` -> convert to `[Gateway] Server Coordinator`).
+   - Always ensure the final string follows the standardized format: `[Gateway] <Name>`.
+2. **Execute Database Rename:**
+   - Call the MCP tool:
+     `rename_chat(conversation_id="<current_id>", new_title="[Gateway] <Formatted Name>")`
+   - Antigravity's SQLite database updates immediately, reflecting the new title in the project sidebar.
+
 
 ### Step 4: Output the Gateway Operating Contract
 Output an affirmative confirmation and reinforce the binding rules:

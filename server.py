@@ -201,18 +201,24 @@ def tool_get_chat_status(conversation_id):
 def tool_rename_chat(conversation_id, new_title):
     """Renames an active conversation in Antigravity's SQLite database."""
     try:
+        title = new_title.strip()
+        if "gateway" in title.lower() and not title.lower().startswith("[gateway]"):
+            clean_name = re.sub(r'^[\[\(\s]*gateway[\]\)\s]*', '', title, flags=re.IGNORECASE).strip()
+            title = f"[Gateway] {clean_name}" if clean_name else "[Gateway] Dispatcher"
+
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("UPDATE conversation_summaries SET title = ? WHERE conversation_id = ?", (new_title, conversation_id))
+        cursor.execute("UPDATE conversation_summaries SET title = ? WHERE conversation_id = ?", (title, conversation_id))
         conn.commit()
         conn.close()
         return {
             "status": "success",
             "conversation_id": conversation_id,
-            "new_title": new_title
+            "new_title": title
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
 
 
 
