@@ -46,3 +46,20 @@ At the beginning of **EVERY** prompt or conversation turn:
   - Context & background of the issue.
   - Concrete technical details (APIs, parameters, database schemas, crediting logic, etc.).
   - The exact question or decision requested from the target project.
+
+---
+
+## 4. 🛑 Anti-Looping & Token-Efficient Status Protocol
+
+### 🚫 Strict Ban on Second-by-Second Polling
+- **NEVER poll in a tight loop or check status every second.** Polling burns massive tokens and clogs the session.
+- Antigravity is an event-driven system: When the target chat finishes its prompt, it sends a receipt back via `reply_to_sender`, which **automatically wakes up this conversation**.
+
+### ⏱️ The 15s Verification & Wait Cycle:
+1. **Initial Verification (after ~15s):**
+   - After calling `send_message_to_chat`, check the target chat's status **once** after 15 seconds using `get_chat_status(conversation_id=...)` to confirm it accepted the prompt (`execution_state: "RUNNING"` or step count progressed).
+2. **Reactive Sleep (Preferred):**
+   - Once verified that the target chat is running, inform the user and **end your turn (stop calling tools)**.
+   - You do NOT need to stay awake! When the target chat finishes and calls `reply_to_sender`, Antigravity will automatically wake you up with the results.
+3. **If Periodic Monitoring is required:**
+   - If monitoring is explicitly requested, check at most **once every 30 seconds** using `get_chat_status` — NEVER faster.

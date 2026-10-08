@@ -140,10 +140,10 @@ def tool_list_project_chats(project_name):
     cursor = conn.cursor()
     
     rows = cursor.execute("""
-        SELECT conversation_id, title, project_id, workspace_uris, updated_at
+        SELECT conversation_id, title, project_id, workspace_uris, last_modified_time
         FROM conversation_summaries 
         WHERE workspace_uris LIKE ? OR project_id LIKE ?
-        ORDER BY updated_at DESC
+        ORDER BY last_modified_time DESC
     """, (f"%{project_name}%", f"%{project_name}%")).fetchall()
     
     chats = []
@@ -170,6 +170,32 @@ def tool_list_project_chats(project_name):
         "recommended_gateway_chat": gateway_chat,
         "chats": chats[:25]
     }
+
+def tool_get_chat_status(conversation_id):
+    """Checks the live execution status of a conversation (IDLE vs RUNNING, step count)."""
+    conn = get_db()
+    cursor = conn.cursor()
+    row = cursor.execute("""
+        SELECT conversation_id, title, status, not_fully_idle, step_count, last_modified_time
+        FROM conversation_summaries
+        WHERE conversation_id = ?
+    """, (conversation_id,)).fetchone()
+    conn.close()
+    if not row:
+        return {"status": "not_found", "conversation_id": conversation_id}
+    
+    cid, title, status, not_idle, steps, last_mod = row
+    is_running = (status == "CASCADE_RUN_STATUS_RUNNING" or not_idle == 1)
+    return {
+        "status": "success",
+        "conversation_id": cid,
+        "title": title,
+        "is_running": is_running,
+        "execution_state": "RUNNING" if is_running else "IDLE",
+        "step_count": steps,
+        "last_modified": last_mod
+    }
+
 
 def tool_send_message_to_chat(conversation_id, message, priority="Normal", sender_project="Unknown", sender_chat_id="Unknown"):
     """Sends a message directly into a target conversation via agentapi and wakes it up."""
@@ -364,6 +390,20 @@ TOOLS = [
         }
     },
     {
+        "name": "get_chat_status",
+        "description": "Checks the live execution status of a conversation (e.g. whether it is RUNNING, IDLE, or finished, along with current step count).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Conversation ID to inspect"
+                }
+            },
+            "required": ["conversation_id"]
+        }
+    },
+    {
         "name": "send_message_to_chat",
         "description": "Sends a message directly into another project's active conversation via agentapi, waking it up immediately.",
         "inputSchema": {
@@ -517,6 +557,8 @@ def handle_request(req):
                 res = tool_list_projects()
             elif name == "list_project_chats":
                 res = tool_list_project_chats(args.get("project_name"))
+            elif name == "get_chat_status":
+                res = tool_get_chat_status(args.get("conversation_id"))
             elif name == "send_message_to_chat":
                 res = tool_send_message_to_chat(
                     conversation_id=args.get("conversation_id"),

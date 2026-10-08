@@ -26,6 +26,7 @@ This skill coordinates cross-project and inter-agent communication between diffe
 |---|---|
 | `list_projects` | Lists all registered projects with local paths, chat metrics, and inbox status. |
 | `list_project_chats` | Lists active conversations for a project from SQLite DB (highlights `[Gateway]` chats). |
+| `get_chat_status` | Inspects live execution status (`RUNNING` vs `IDLE`, step count) of a conversation. |
 | `send_message_to_chat` | Sends a message directly into a target conversation and wakes it up live (`agentapi send-message`). |
 | `reply_to_sender` | Sends an execution receipt or status update back to the `sender_chat_id`. |
 | `send_inbox_note` | Safely appends a structured task note (append-only) to `.agents/INBOX.md` in the target project. |
@@ -48,6 +49,12 @@ This skill coordinates cross-project and inter-agent communication between diffe
   - Use ONLY if the user explicitly says: *Notiz hinterlegen, in die Inbox schreiben, für später, als Todo eintragen*.
   - Or if no active chats exist in the target project.
 
+### Step 3: Token-Efficient Status Check & Reactive Wait
+- **Initial Verification (15s):** After dispatching the message, verify **once** after ~15 seconds with `get_chat_status(conversation_id=...)` that the target chat picked up the work (`RUNNING`).
+- **End Turn & Wait for Receipt:** Once verified, inform the user and **finish your turn**.
+- **No Active Loop:** DO NOT loop or poll every second! The target chat will automatically call `reply_to_sender` when done, which reactively wakes up this conversation with zero token burn while waiting.
+- If monitoring is explicitly requested, poll at most **once every 30 seconds**.
+
 ---
 
 ## 🚫 Crucial Guardrails
@@ -62,3 +69,4 @@ This skill coordinates cross-project and inter-agent communication between diffe
 
 ### 2. Never Edit Foreign Code Directly
 - Never touch files outside your active project workspace. Always delegate cross-project requirements via `/communicate` and `antigravity-bridge`.
+
