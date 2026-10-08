@@ -198,6 +198,23 @@ def tool_get_chat_status(conversation_id):
         "last_modified": last_mod
     }
 
+def tool_rename_chat(conversation_id, new_title):
+    """Renames an active conversation in Antigravity's SQLite database."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE conversation_summaries SET title = ? WHERE conversation_id = ?", (new_title, conversation_id))
+        conn.commit()
+        conn.close()
+        return {
+            "status": "success",
+            "conversation_id": conversation_id,
+            "new_title": new_title
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 
 def tool_send_message_to_chat(conversation_id, message, priority="Normal", sender_project="Unknown", sender_chat_id="Unknown"):
     """Sends a message directly into a target conversation via agentapi and wakes it up."""
@@ -411,6 +428,24 @@ TOOLS = [
         }
     },
     {
+        "name": "rename_chat",
+        "description": "Renames a conversation in Antigravity's SQLite database (e.g. to assign a '[Gateway] ...' title).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "description": "Conversation ID to rename"
+                },
+                "new_title": {
+                    "type": "string",
+                    "description": "New title for the conversation"
+                }
+            },
+            "required": ["conversation_id", "new_title"]
+        }
+    },
+    {
         "name": "send_message_to_chat",
         "description": "Sends a message directly into another project's active conversation via agentapi, waking it up immediately.",
         "inputSchema": {
@@ -566,6 +601,8 @@ def handle_request(req):
                 res = tool_list_project_chats(args.get("project_name"))
             elif name == "get_chat_status":
                 res = tool_get_chat_status(args.get("conversation_id"))
+            elif name == "rename_chat":
+                res = tool_rename_chat(args.get("conversation_id"), args.get("new_title"))
             elif name == "send_message_to_chat":
                 res = tool_send_message_to_chat(
                     conversation_id=args.get("conversation_id"),
