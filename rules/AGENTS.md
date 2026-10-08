@@ -19,8 +19,11 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ---
 
-## 2. 🛡️ Workspace Boundary Protection & Delegation
+## 2. 🛡️ Workspace Boundary Protection & Strict Plugin Immutability
 - **Never touch foreign code:** If your current task requires code modifications, service restarts, or database updates in a different repository or workspace, **never** modify foreign files directly.
+- **🚫 ABSOLUTE BAN ON MODIFYING PLUGINS & MCP SERVERS:**
+  Agents MUST NEVER inspect, edit, modify, patch, or debug files located in `~/.gemini/` (including `~/.gemini/config/plugins/`, `~/.gemini/antigravity/mcp_servers/`, rules, or skills).
+  If an MCP tool fails or returns an error, **NEVER** attempt to self-repair or reverse-engineer the plugin! Simply inform the user of the error or fall back to an asynchronous inbox note (`send_inbox_note`).
 - **Always delegate:** Use the `/communicate` slash command or the `antigravity-bridge` MCP server.
 - **Execution Receipts:** If this conversation was woken up with a `sender_chat_id`, send a completion confirmation back using the `reply_to_sender` tool once the requested work is complete.
 

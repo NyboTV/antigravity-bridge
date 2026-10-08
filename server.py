@@ -43,6 +43,66 @@ def find_agentapi():
             return c
     return candidates[0]
 
+def get_agentapi_env():
+    """Ensures ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN are available for agentapi."""
+    env = os.environ.copy()
+    if "ANTIGRAVITY_LS_ADDRESS" in env and "ANTIGRAVITY_CSRF_TOKEN" in env:
+        return env
+    try:
+        if os.name == "nt":
+            cmd = ["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_Process -Filter \"Name = 'language_server.exe'\") | Select-Object -Property ProcessId, CommandLine | Format-List"]
+            out = subprocess.check_output(cmd, text=True, timeout=5)
+            pid_m = re.search(r"ProcessId\s*:\s*(\d+)", out)
+            token_m = re.search(r"--csrf_token\s+([a-zA-Z0-9-]+)", out)
+            if pid_m and token_m:
+                pid = pid_m.group(1)
+                token = token_m.group(1)
+                env["ANTIGRAVITY_CSRF_TOKEN"] = token
+                port_cmd = ["powershell", "-NoProfile", "-Command", f"(Get-NetTCPConnection -OwningProcess {pid} -State Listen | Where-Object {{ $_.LocalAddress -eq '127.0.0.1' }}).LocalPort"]
+                ports = [int(p) for p in subprocess.check_output(port_cmd, text=True, timeout=5).strip().split()]
+                if ports:
+                    env["ANTIGRAVITY_LS_ADDRESS"] = f"localhost:{max(ports)}"
+    except Exception:
+        pass
+    return env
+
+def run_agentapi_command(args, timeout=15):
+    """Executes an agentapi subcommand cleanly with auto-discovered environment and no shell escaping bugs."""
+    env = get_agentapi_env()
+    ls_exe = os.environ.get("ANTIGRAVITY_AGENTAPI_EXE")
+    if not ls_exe:
+        default_ls = os.path.expandvars(r"%LOCALAPPDATA%\Programs\antigravity\resources\bin\language_server.exe")
+        if os.path.exists(default_ls):
+            ls_exe = default_ls
+            
+    if ls_exe and os.path.exists(ls_exe):
+        cmd = [ls_exe, "agentapi"] + args
+        return subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            shell=False,
+            env=env
+        )
+    else:
+        agentapi_cmd = find_agentapi()
+        cmd = [agentapi_cmd] + args
+        return subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            shell=(os.name == "nt"),
+            env=env
+        )
+
 def parse_workspace_uri_to_path(uri):
     """Converts a file:// URI to a local filesystem path."""
     if not uri:
@@ -222,18 +282,8 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
         f"\n---\n\n"
     )
     full_message = header + message
-
-    cmd = [agentapi_cmd, "send-message", full_message, "--conversation-id", conversation_id]
-    
     try:
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=15,
-            shell=(os.name == "nt")
-        )
+        proc = run_agentapi_command(["send-message", conversation_id, full_message])
         if proc.returncode == 0:
             return {
                 "status": "success",
@@ -265,17 +315,8 @@ def tool_reply_to_sender(sender_chat_id, status_message, sender_project="Target"
         f"\n---\n\n"
     )
     full_reply = header + status_message
-    
-    cmd = [agentapi_cmd, "send-message", full_reply, "--conversation-id", sender_chat_id]
     try:
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=15,
-            shell=(os.name == "nt")
-        )
+        proc = run_agentapi_command(["send-message", sender_chat_id, full_reply])
         return {
             "status": "success" if proc.returncode == 0 else "error",
             "output": proc.stdout.strip() if proc.returncode == 0 else proc.stderr.strip()
