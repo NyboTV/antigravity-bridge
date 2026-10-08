@@ -6,15 +6,15 @@
 
 ## 1. 🔍 Mandatory Inbox Check on Every Prompt
 At the beginning of **EVERY** prompt or conversation turn:
-*(Ausnahme: Bei Befehlen wie `/communicate-start` entfällt der Inbox-Check zugunsten der sofortigen Anzeige des Rollen-Dialogs ohne Tools).*
+*(Exception: For initialization commands like `/communicate-start`, skip the inbox check in favor of displaying the gateway setup card immediately).*
 1. **Check for Inbox:** Verify if an `.agents/INBOX.md` file exists in the current project workspace root.
-2. **Immediate Stop on Incoming Message:** If `.agents/INBOX.md` contains an unread message block (`### 📩 Incoming Message` or `### 📩 Eingehende Nachricht`):
+2. **Immediate Stop on Incoming Message:** If `.agents/INBOX.md` contains an unread message block (`### 📩 Incoming Message` or legacy `### 📩 Eingehende Nachricht`):
    - **Immediately pause** regular processing of the user's prompt.
    - Present the incoming message directly to the user (Sender Project, Conversation ID, Priority, Subject, Content).
    - Ask the user how to proceed:
      - **Execute now:** Perform the task and archive the note via the `archive_inbox_note` tool or append to `.agents/INBOX_ARCHIVE.md`.
      - **Queue as Todo:** Transfer into your local task list / TODO file and archive the note.
-     - **Dismiss:** Archive the note with resolution "Dismissed / Verworfen".
+     - **Dismiss:** Archive the note with resolution "Dismissed".
    - **Important:** Notes must **never** linger in `INBOX.md` after being surfaced to the user.
 
 ---
@@ -30,7 +30,7 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ### 🔴 Default Mode: Live Wakeup (`send_message_to_chat`)
 - Whenever the user asks you to consult, coordinate, discuss, or contact another project:
-  *(e.g., "abstimmen", "kontaktieren", "besprechen", "frag nach", "sag Bescheid", "jetzt", "live")*
+  *(e.g., "coordinate", "contact", "discuss", "ask", "notify", "now", "live", "immediately", or equivalents like "abstimmen", "kontaktieren")*
 - **DO NOT write an inbox note!**
 - **Action:**
   1. Call `list_project_chats(project_name=...)` to find the target's `[Gateway]` chat (or active chat).
@@ -38,11 +38,11 @@ At the beginning of **EVERY** prompt or conversation turn:
 
 ### 🟡 Secondary Mode: Asynchronous Inbox (`send_inbox_note`)
 - Use `send_inbox_note` **ONLY** if:
-  1. The user explicitly asks for a note/ticket: *(e.g., "Notiz hinterlegen", "in die Inbox schreiben", "für später merken", "als Todo eintragen")*.
+  1. The user explicitly asks for a note/ticket: *(e.g., "leave a note", "add to inbox", "save for later", "queue as todo", or equivalents like "Notiz hinterlegen")*.
   2. OR if `list_project_chats` finds no active chats in the target project.
 
 ### 🚫 Strict Ban on "Test" Messages & Exploratory Pings
-- **NEVER** send "Test", "Ping", "Hallo", "Bist du da?", or hesitation probing.
+- **NEVER** send "Test", "Ping", "Hello", "Are you there?", or hesitation probing.
 - **ALWAYS** include the complete, substantive technical payload directly in your first message:
   - Context & background of the issue.
   - Concrete technical details (APIs, parameters, database schemas, crediting logic, etc.).
@@ -51,11 +51,10 @@ At the beginning of **EVERY** prompt or conversation turn:
 ### 🚪 Multiple Gateway Routing (The /grill-me Choice Rule)
 - If `list_project_chats` returns `has_multiple_gateways: true` (multiple `[Gateway]` chats found) and the user did not specify which one to contact:
   - **DO NOT guess arbitrarily.**
-  - Ask the user directly using a clean, numbered choice list (like in `/grill-me`):
-    *„Es wurden mehrere Gateway-Chats in [Projekt] gefunden: 1) [Name], 2) [Name] ... Welcher soll verwendet werden?“*
+  - Ask the user directly using a clean, numbered choice list:
+    *"Multiple Gateway chats were found in [Project]: 1) [Name], 2) [Name] ... Which one should be contacted?"*
   - Dispatch only once the user confirms or if the task matches a gateway's specialized role 100%.
 - If only a single Gateway chat exists (`has_multiple_gateways: false`), dispatch immediately without unnecessary asking.
-
 
 ---
 
@@ -75,6 +74,5 @@ At the beginning of **EVERY** prompt or conversation turn:
    - If monitoring is explicitly requested, check at most **once every 30 seconds** using `get_chat_status` — NEVER faster.
 4. **🛡️ 5-Minute Watchdog Timeout (Fall-Back Safety Net):**
    - If no `reply_to_sender` receipt has arrived after 5 minutes, inspect `get_chat_status(conversation_id=...)`:
-     - **If IDLE:** The target chat finished its execution turn but omitted calling `reply_to_sender` (e.g., interrupted by user, hit context limit, or forgot the tool call). Inform the user immediately: *„Target chat has finished (IDLE) without sending a return receipt. Please check the target conversation directly.“*
+     - **If IDLE:** The target chat finished its execution turn but omitted calling `reply_to_sender` (e.g., interrupted by user, hit context limit, or forgot the tool call). Inform the user immediately: *"Target chat has finished (IDLE) without sending a return receipt. Please check the target conversation directly."*
      - **If RUNNING:** The target chat is actively computing a complex, long-running task. Inform the user and continue waiting.
-

@@ -20,53 +20,54 @@ This skill sets up the current conversation as an official **`[Gateway]` Dispatc
 - **DO NOT inspect MCP schemas, configs, or python scripts.**
 - **DO NOT run `ask_question`, file viewers, or shell commands.**
 - Output the onboarding card **immediately as pure Markdown text**.
+- *Language note:* Match the output language to the user's conversational language (e.g. respond in German if the user prompts in German, English if in English).
 
 ---
 
 ## 📋 Execution Protocol
 
 ### Step 1: Detect Role (if provided in prompt)
-- Check if the user passed a role parameter with the slash command (e.g. `/communicate-start Backend`, `/communicate-start Caleb`, `/communicate-start DevOps`).
-- If provided, format the suggested name as **`[Gateway] <Name>`** (guaranteeing the `[Gateway] ` prefix).
+- Check if the user passed an optional role parameter with the slash command (e.g. `/communicate-start Backend`, `/communicate-start Caleb`, `/communicate-start DevOps`).
+- If provided, format the suggested title as **`[Gateway] <Name>`** (always guaranteeing the `[Gateway] ` prefix).
 - If not provided, suggest standard examples: `[Gateway] Backend`, `[Gateway] Frontend`, `[Gateway] DevOps`, or a custom name.
 
 ---
 
 ### Step 2: Output the Gateway Onboarding Card
 
-Render the complete guide directly to the user and agent context:
+Render the complete guide directly to the user and agent context (translate text to user's conversation language as appropriate):
 
 ```markdown
 ---
-### 🚪 [Gateway] Dispatcher Initialisierung
+### 🚪 [Gateway] Dispatcher Initialized
 
-Dieser Chat ist ab sofort als **Gateway-Schnittstelle** für dieses Projekt konfiguriert.
-
----
-
-#### ✏️ Schritt 1: Chat in der Sidebar umbenennen
-Damit andere Projekte diesen Chat über die Antigravity Bridge automatisch finden und ansprechen können, benenne diesen Chat-Tab in der linken Sidebar um:
-
-> **Empfohlener Titel:** **`[Gateway] <Rolle>`**  
-> *(z. B. `[Gateway] Backend`, `[Gateway] Frontend`, `[Gateway] DevOps`, `[Gateway] General`)*
-
-*(Einfach mit der Maus über den Chat in der linken Sidebar fahren und auf das Stift-Symbol klicken oder per Rechtsklick umbenennen).*
+This chat is now configured as an official **Gateway Dispatcher** for this project workspace.
 
 ---
 
-#### 💡 Wichtige Best Practices für den Nutzer:
-1. **Exklusiv für Agenten-Kommunikation:**  
-   Nutze diesen Gateway-Chat **nicht** für alltägliche, manuelle Programmieraufgaben. Er sollte als saubere Schnittstelle exklusiv für Anfragen anderer Projekte reserviert bleiben.
-2. **Kontext-Hygiene & Token-Effizienz:**  
-   Ein unbeschriebener oder fokussierter Chat spart massiv Token und stellt sicher, dass der Gateway-Agent den vollen Kontext für eingehende Cross-Project-Aufgaben frei hat.
-3. **Mehrere Spezialisten möglich:**  
-   Du kannst pro Projekt mehrere Gateways anlegen (z. B. `[Gateway] Backend` und `[Gateway] Frontend`). Wenn ein anderes Projekt anklopft, fragt das System automatisch, welcher Gateway-Spezialist angesprochen werden soll.
+#### ✏️ Step 1: Rename the Chat Tab in the Sidebar
+To allow other projects to automatically discover and contact this chat via Antigravity Bridge, rename this conversation tab in the left sidebar:
+
+> **Recommended Title:** **`[Gateway] <Role>`**  
+> *(e.g. `[Gateway] Backend`, `[Gateway] Frontend`, `[Gateway] DevOps`, `[Gateway] General`)*
+
+*(Hover over the chat item in the left sidebar, click the pencil icon, or right-click to rename).*
 
 ---
 
-#### 📜 Verbindliche Betriebsregeln für diesen Gateway-Agenten:
-1. **Empfangsbereitschaft:** Du nimmst eingehende Anfragen anderer Projekte via Antigravity Bridge entgegen und bearbeitest sie im Kontext dieses Workspace.
-2. **⚠️ Zwingende Quittungspflicht (`reply_to_sender`):** Wenn eine eingehende Nachricht mit `sender_chat_id` eintrifft, MUSST du nach Fertigstellung der Aufgabe zwingend das Tool `reply_to_sender(sender_chat_id, status_message)` aufrufen. Erst dadurch wird der anfragende Chat über den Erfolg benachrichtigt.
-3. **🛡️ Projekt-Schutz:** Du veränderst niemals fremden Code außerhalb deines eigenen Workspace. Falls externe Änderungen nötig sind, delegierst du diese über `/communicate` zurück.
+#### 💡 Key Best Practices for the User:
+1. **Exclusive Inter-Agent Channel:**  
+   Do **not** use this Gateway chat for everyday manual development tasks. It should remain a dedicated, clean channel reserved exclusively for requests from other projects.
+2. **Context Hygiene & Token Efficiency:**  
+   An uncluttered chat preserves context tokens and ensures the gateway agent has maximum context window available for incoming cross-project tasks.
+3. **Multi-Gateway Support:**  
+   You can create multiple specialized gateways per project (e.g. `[Gateway] Backend` and `[Gateway] Frontend`). When another project dispatches a task, the bridge will automatically let them select the relevant specialist.
+
+---
+
+#### 📜 Binding Operating Rules for this Gateway Agent:
+1. **Ready to Receive:** You accept incoming cross-project requests dispatched via Antigravity Bridge and handle them strictly within the scope of this workspace.
+2. **⚠️ Mandatory Return Receipt (`reply_to_sender`):** Whenever an incoming task includes a `sender_chat_id`, you MUST invoke `reply_to_sender(sender_chat_id, status_message)` upon completion. This is what reactively wakes up the originating chat with your results.
+3. **🛡️ Workspace Boundary Protection:** Never modify foreign code outside this workspace. If changes are required in another project, delegate them back using `/communicate`.
 ---
 ```

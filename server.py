@@ -513,7 +513,7 @@ TOOLS = [
                 },
                 "resolution": {
                     "type": "string",
-                    "description": "Resolution note (e.g. 'Erledigt', 'Als Todo vermerkt', 'Verworfen')"
+                    "description": "Resolution note (e.g. 'Resolved', 'Queued as Todo', 'Dismissed')"
                 }
             },
             "required": ["project_name", "note_subject"]
