@@ -9,7 +9,29 @@
 
 ---
 
-## 🌟 Features
+## 💡 Why Antigravity Bridge? (The Problem & Purpose)
+
+In modern development, complex applications rarely live in a single isolated folder. You often have a **Web Frontend**, an **API Backend**, a **DevOps / Infrastructure** setup, or microservices split across different directories or workspaces.
+
+In **Google Antigravity 2.0**, each project workspace operates in its own isolated environment. While this keeps contexts focused and clean, it introduces major friction:
+
+### 🚨 The Problem:
+* **Context Pollution & Breakage:** If an agent in your Frontend project attempts to edit files in your Backend or Server project directly, it lacks the target project's specific linters, dependencies, and `AGENTS.md` guidelines—frequently leading to hallucinations and broken foreign code.
+* **Manual Workspace Switching:** You must constantly stop what you're doing, switch project workspaces in Antigravity, open a chat, re-explain the entire context from scratch, and copy results back manually.
+* **No Inter-Agent Collaboration:** There was previously no native mechanism for an agent in Project A to wake up or hand off tasks to an agent in Project B.
+
+### ✨ The Solution & Benefits:
+* 🚀 **Zero Context Loss / Stay in Your Flow:** Never leave your active chat. With `/communicate`, your agent directly dispatches instructions to the responsible project agent with full context.
+* 🛡️ **Strict Architectural Hygiene & Domain Isolation:** Each agent remains strictly responsible for its own codebase. The frontend agent codes frontend; the infrastructure agent manages ports and reverse proxies.
+* 🔁 **Closed-Loop Feedback:** When the target agent finishes, it automatically reports an execution receipt (`reply_to_sender`) back to your originating chat.
+* 📬 **Asynchronous vs. Real-Time Flexibility:**
+  * Need it **now**? Wakes up the target Gateway chat immediately.
+  * Need it **later**? Drops an append-only note into `.agents/INBOX.md`, where the target agent will pick it up on its next prompt.
+* 🏢 **True Multi-Agent Team Dynamics:** Turns independent project chats into a cohesive, coordinated team of autonomous agents across your entire machine.
+
+---
+
+## 🌟 Key Features
 
 - ⚡ **Live Cross-Project Dispatching:** Wake up active conversations in other projects and workspaces via `agentapi` without leaving your current chat.
 - 📬 **Append-Only Inbox System:** Asynchronously queue actionable task notes into `.agents/INBOX.md` of target projects without touching foreign code directly.
