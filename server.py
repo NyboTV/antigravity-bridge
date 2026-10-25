@@ -306,15 +306,14 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
                 "status": "success",
                 "conversation_id": conversation_id,
                 "message_dispatched": True,
-                "output": proc.stdout.strip(),
-                "user_reminder": "IMPORTANT: Remind the user to keep an eye on the target chat tab! If this is the first contact or if tool permissions are not set to auto-approve, the target Gateway agent may pause waiting for manual user confirmation of MCP tools or workspace access before it can execute."
+                "user_reminder": "Remind the user to watch the target tab for tool approvals if needed."
             }
         else:
             return {
                 "status": "error",
                 "returncode": proc.returncode,
-                "stderr": proc.stderr.strip(),
-                "stdout": proc.stdout.strip()
+                "stderr": proc.stderr.strip()[:500],
+                "stdout": proc.stdout.strip()[:500]
             }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -337,7 +336,9 @@ def tool_reply_to_sender(sender_chat_id, status_message, sender_project="Target"
         proc = run_agentapi_command(["send-message", sender_chat_id, full_reply])
         return {
             "status": "success" if proc.returncode == 0 else "error",
-            "output": proc.stdout.strip() if proc.returncode == 0 else proc.stderr.strip()
+            "sender_chat_id": sender_chat_id,
+            "receipt_dispatched": proc.returncode == 0,
+            "error": proc.stderr.strip()[:500] if proc.returncode != 0 else None
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -519,63 +520,6 @@ TOOLS = [
                 }
             },
             "required": ["sender_chat_id", "status_message"]
-        }
-    },
-    {
-        "name": "send_inbox_note",
-        "description": "Appends an asynchronous task note into target project's .agents/INBOX.md.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "target_project": {
-                    "type": "string",
-                    "description": "Destination project name"
-                },
-                "sender_project": {
-                    "type": "string",
-                    "description": "Sending project name"
-                },
-                "subject": {
-                    "type": "string",
-                    "description": "Short subject / topic"
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Detailed task instructions"
-                },
-                "priority": {
-                    "type": "string",
-                    "enum": ["Normal", "Dringend"],
-                    "default": "Normal"
-                },
-                "sender_chat_id": {
-                    "type": "string",
-                    "description": "Optional conversation ID"
-                }
-            },
-            "required": ["target_project", "sender_project", "subject", "content"]
-        }
-    },
-    {
-        "name": "archive_inbox_note",
-        "description": "Archives a handled note from .agents/INBOX.md to .agents/INBOX_ARCHIVE.md.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "project_name": {
-                    "type": "string",
-                    "description": "Project where the inbox resides"
-                },
-                "note_subject": {
-                    "type": "string",
-                    "description": "Subject or part of text to match"
-                },
-                "resolution": {
-                    "type": "string",
-                    "description": "Resolution note (e.g. 'Resolved', 'Queued as Todo', 'Dismissed')"
-                }
-            },
-            "required": ["project_name", "note_subject"]
         }
     }
 ]
