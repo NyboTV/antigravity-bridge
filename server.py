@@ -11,28 +11,39 @@ License: MIT
 import sys
 import os
 import json
+import time
+import ssl
+import errno
+import argparse
 import sqlite3
 import subprocess
 import datetime
 import re
 import shutil
 import urllib.parse
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+SERVER_VERSION = "1.2.0"
 
 # Universal Paths
 GEMINI_DIR = os.path.expanduser(os.environ.get("ANTIGRAVITY_HOME", r"~/.gemini/antigravity"))
 DB_PATH = os.environ.get("ANTIGRAVITY_DB_PATH", os.path.join(GEMINI_DIR, "conversation_summaries.db"))
 
+_CACHED_LS_SESSION = None
+
+
 def find_agentapi():
     """Finds the agentapi executable across operating systems."""
-    env_override = os.environ.get("AGENTAPI_PATH")
-    if env_override and os.path.exists(env_override):
-        return env_override
-    
+    for key in ("ANTIGRAVITY_AGENTAPI_EXE", "AGENTAPI_PATH"):
+        env_override = os.environ.get(key)
+        if env_override and os.path.exists(env_override):
+            return env_override
+
     which_path = shutil.which("agentapi") or shutil.which("agentapi.bat")
     if which_path:
         return which_path
 
-    # Check ~/.gemini/antigravity/bin/
     candidates = [
         os.path.join(GEMINI_DIR, "bin", "agentapi.bat"),
         os.path.join(GEMINI_DIR, "bin", "agentapi"),
@@ -43,36 +54,174 @@ def find_agentapi():
             return c
     return candidates[0]
 
-def get_agentapi_env():
-    """Ensures ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN are available for agentapi."""
-    env = os.environ.copy()
-    if "ANTIGRAVITY_LS_ADDRESS" in env and "ANTIGRAVITY_CSRF_TOKEN" in env:
-        return env
+
+def _probe_connect_rpc_port(scheme, port, token, timeout=1.2):
+    """Verifies that (scheme, port, token) is a real Antigravity Language Server ConnectRPC endpoint (HTTP 200),
+    filtering out Sidecar HTTP/1.1 ports (401) and wrong-protocol listeners (400)."""
+    url = f"{scheme}://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/GetUserStatus"
+    headers = {
+        "Content-Type": "application/json",
+        "Connect-Protocol-Version": "1",
+    }
+    if token:
+        headers["x-codeium-csrf-token"] = token
+    req = urllib.request.Request(url, data=b"{}", headers=headers, method="POST")
+    ctx = ssl._create_unverified_context() if scheme == "https" else None
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def discover_verified_ls_session(force_refresh=False):
+    """Discovers and verifies the active Language Server ConnectRPC/h2c port & CSRF token.
+    Primary path (Antigravity v2.34+): Official Sidecar / Agent environment variables
+    (ANTIGRAVITY_LS_ADDRESS + ANTIGRAVITY_CSRF_TOKEN).
+    Fallback path: Locale-safe TCP listener discovery (0.0.0.0:0 instead of locale-specific LISTENING)."""
+    global _CACHED_LS_SESSION
+    now = time.time()
+    if (
+        not force_refresh
+        and _CACHED_LS_SESSION is not None
+        and (now - _CACHED_LS_SESSION["ts"]) < 60.0
+    ):
+        return _CACHED_LS_SESSION
+
+    # 1. Official Antigravity Sidecar / Agent Environment (0ms fast path!)
+    env_addr = os.environ.get("ANTIGRAVITY_LS_ADDRESS", "").strip()
+    env_tok = os.environ.get("ANTIGRAVITY_CSRF_TOKEN", "").strip()
+    if env_addr and ":" in env_addr:
+        try:
+            env_port = int(env_addr.rsplit(":", 1)[1])
+            preferred_scheme = "https" if env_addr.lower().startswith("https://") else "http"
+            alt_scheme = "http" if preferred_scheme == "https" else "https"
+            for sch in (preferred_scheme, alt_scheme):
+                if _probe_connect_rpc_port(sch, env_port, env_tok):
+                    _CACHED_LS_SESSION = {
+                        "scheme": sch,
+                        "port": env_port,
+                        "http_port": env_port if sch == "http" else None,
+                        "token": env_tok,
+                        "ts": now,
+                    }
+                    return _CACHED_LS_SESSION
+        except ValueError:
+            pass
+
+    # 2. Legacy Fallback (for Antigravity < 2.34 where --csrf_token was on CommandLine; locale-independent 0.0.0.0:0)
+    candidates = []
     try:
         if os.name == "nt":
-            cmd = ["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_Process -Filter \"Name = 'language_server.exe'\") | Select-Object -Property ProcessId, CommandLine | Format-List"]
-            out = subprocess.check_output(cmd, text=True, timeout=5)
-            pid_m = re.search(r"ProcessId\s*:\s*(\d+)", out)
-            token_m = re.search(r"--csrf_token\s+([a-zA-Z0-9-]+)", out)
-            if pid_m and token_m:
-                pid = pid_m.group(1)
-                token = token_m.group(1)
-                env["ANTIGRAVITY_CSRF_TOKEN"] = token
-                port_cmd = ["powershell", "-NoProfile", "-Command", f"(Get-NetTCPConnection -OwningProcess {pid} -State Listen | Where-Object {{ $_.LocalAddress -eq '127.0.0.1' }}).LocalPort"]
-                ports = [int(p) for p in subprocess.check_output(port_cmd, text=True, timeout=5).strip().split()]
-                if ports:
-                    env["ANTIGRAVITY_LS_ADDRESS"] = f"localhost:{max(ports)}"
+            ps_out = subprocess.check_output(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Get-CimInstance Win32_Process -Filter \"Name='language_server.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress",
+                ],
+                text=True,
+                timeout=4,
+            ).strip()
+            net_out = subprocess.check_output(
+                ["netstat.exe", "-ano", "-p", "tcp"],
+                text=True,
+                timeout=3,
+            )
+            ports_by_pid = {}
+            for line in net_out.splitlines():
+                # Locale-independent: match 0.0.0.0:0 instead of 'LISTENING' ('ABHOEREN' on German Windows)
+                m = re.match(r"^\s*TCP\s+127\.0\.0\.1:(\d+)\s+0\.0\.0\.0:0\s+\S+\s+(\d+)\s*$", line, re.IGNORECASE)
+                if m:
+                    ports_by_pid.setdefault(int(m.group(2)), []).append(int(m.group(1)))
+
+            if ps_out:
+                parsed = json.loads(ps_out)
+                if isinstance(parsed, dict):
+                    parsed = [parsed]
+                for srv in parsed:
+                    cmd_str = str(srv.get("CommandLine") or "")
+                    tm = re.search(r"--csrf_token\s+(\S+)", cmd_str)
+                    tok = tm.group(1) if tm else env_tok
+                    pid = int(srv.get("ProcessId") or 0)
+                    for p in sorted(set(ports_by_pid.get(pid, []))):
+                        if tok and (p, tok) not in candidates:
+                            candidates.append((p, tok))
     except Exception:
         pass
+
+    for sch in ("http", "https"):
+        for port, tok in candidates:
+            if _probe_connect_rpc_port(sch, port, tok):
+                _CACHED_LS_SESSION = {
+                    "scheme": sch,
+                    "port": port,
+                    "http_port": port if sch == "http" else None,
+                    "token": tok,
+                    "ts": now,
+                }
+                return _CACHED_LS_SESSION
+
+    return None
+
+
+def call_connect_rpc(rpc_path, payload_obj, timeout=8.0):
+    """Calls Antigravity Language Server directly via ConnectRPC JSON (HTTP/HTTPS) with automatic port re-discovery."""
+    session = discover_verified_ls_session(force_refresh=False)
+    if not session:
+        session = discover_verified_ls_session(force_refresh=True)
+    if not session:
+        raise RuntimeError("Could not locate an active Antigravity Language Server RPC port.")
+
+    body = json.dumps(payload_obj, ensure_ascii=False).encode("utf-8")
+
+    for attempt in range(2):
+        scheme = session["scheme"]
+        port = session["port"]
+        token = session["token"]
+        url = f"{scheme}://127.0.0.1:{port}{rpc_path}"
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Connect-Protocol-Version": "1",
+                "x-codeium-csrf-token": token,
+            },
+            method="POST",
+        )
+        ctx = ssl._create_unverified_context() if scheme == "https" else None
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                raw_resp = resp.read().decode("utf-8", errors="replace")
+                return json.loads(raw_resp) if raw_resp.strip() else {}
+        except Exception as err:
+            if attempt == 0:
+                session = discover_verified_ls_session(force_refresh=True)
+                if not session:
+                    raise err
+            else:
+                raise err
+
+
+def get_agentapi_env(force_refresh=False):
+    """Ensures ANTIGRAVITY_LS_ADDRESS points to the verified HTTP/h2c port (never a Sidecar or HTTPS-only port)."""
+    env = os.environ.copy()
+    session = discover_verified_ls_session(force_refresh=force_refresh)
+    if session and session.get("http_port") and session.get("token"):
+        env["ANTIGRAVITY_LS_ADDRESS"] = f"localhost:{session['http_port']}"
+        env["ANTIGRAVITY_CSRF_TOKEN"] = session["token"]
     return env
 
+
 def run_agentapi_command(args, timeout=15):
-    """Executes an agentapi subcommand cleanly with auto-discovered environment and no shell escaping bugs."""
-    env = get_agentapi_env()
+    """Executes an agentapi subcommand cleanly against the verified HTTP/h2c port."""
+    env = get_agentapi_env(force_refresh=True)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     env["PYTHONLEGACYWINDOWSSTDIO"] = "0"
-    
+
     ls_exe = os.environ.get("ANTIGRAVITY_AGENTAPI_EXE")
     if not ls_exe:
         default_ls = os.path.expandvars(r"%LOCALAPPDATA%\Programs\antigravity\resources\bin\language_server.exe")
@@ -89,7 +238,7 @@ def run_agentapi_command(args, timeout=15):
                     ls_exe = proc_path
             except Exception:
                 pass
-            
+
     if ls_exe and os.path.exists(ls_exe):
         cmd = [ls_exe, "agentapi"] + args
         return subprocess.run(
@@ -117,6 +266,35 @@ def run_agentapi_command(args, timeout=15):
             shell=(os.name == "nt"),
             env=env
         )
+
+
+def dispatch_agent_message(recipient_id, content, display_title, sender_id=None):
+    """Primary dispatch via verified ConnectRPC SendAgentMessage (<15ms, full UTF-8), with verified agentapi fallback."""
+    effective_sender = sender_id if (sender_id and sender_id not in ("Unknown", "")) else recipient_id
+    try:
+        call_connect_rpc(
+            "/exa.language_server_pb.LanguageServerService/SendAgentMessage",
+            {
+                "recipient": recipient_id,
+                "senderId": effective_sender,
+                "content": content,
+                "displayTitle": display_title,
+            },
+            timeout=8.0,
+        )
+        return {"ok": True, "transport": "connect_rpc"}
+    except Exception as rpc_err:
+        # Fallback to CLI agentapi against verified HTTP/h2c port
+        proc = run_agentapi_command(["send-message", f"--title={display_title}", recipient_id, content])
+        if proc.returncode == 0:
+            return {"ok": True, "transport": "agentapi"}
+        return {
+            "ok": False,
+            "rpc_error": str(rpc_err),
+            "returncode": proc.returncode,
+            "stderr": proc.stderr.strip()[:500],
+            "stdout": proc.stdout.strip()[:500],
+        }
 
 def parse_workspace_uri_to_path(uri):
     """Converts a file:// URI to a local filesystem path."""
@@ -245,7 +423,7 @@ def tool_list_project_chats(project_name):
         "gateway_chats": gateway_chats,
         "has_multiple_gateways": len(gateway_chats) > 1,
         "recommended_gateway_chat": gateway_chats[0] if gateway_chats else (chats[0] if chats else None),
-        "chats": chats[:25]
+        "chats": chats[:8]
     }
 
 def tool_get_chat_status(conversation_id):
@@ -274,14 +452,7 @@ def tool_get_chat_status(conversation_id):
     }
 
 def tool_send_message_to_chat(conversation_id, message, priority="Normal", sender_project="Unknown", sender_chat_id="Unknown"):
-    """Sends a message directly into a target conversation via agentapi and wakes it up."""
-    agentapi_cmd = find_agentapi()
-    if not os.path.exists(agentapi_cmd):
-        return {
-            "status": "error",
-            "error": f"agentapi executable not found at '{agentapi_cmd}'. Set AGENTAPI_PATH environment variable."
-        }
-
+    """Sends a message directly into a target conversation via verified ConnectRPC / agentapi and wakes it up."""
     header = (
         f"\n\n---"
         f"\n🛰️ **[Antigravity-Bridge] Incoming Cross-Project Message**"
@@ -300,20 +471,27 @@ def tool_send_message_to_chat(conversation_id, message, priority="Normal", sende
     )
     full_message = header + message
     try:
-        proc = run_agentapi_command(["send-message", conversation_id, full_message])
-        if proc.returncode == 0:
+        res = dispatch_agent_message(
+            recipient_id=conversation_id,
+            content=full_message,
+            display_title=f"Antigravity-Bridge ({sender_project})",
+            sender_id=sender_chat_id,
+        )
+        if res.get("ok"):
             return {
                 "status": "success",
                 "conversation_id": conversation_id,
                 "message_dispatched": True,
+                "transport": res.get("transport"),
                 "user_reminder": "Remind the user to watch the target tab for tool approvals if needed."
             }
         else:
             return {
                 "status": "error",
-                "returncode": proc.returncode,
-                "stderr": proc.stderr.strip()[:500],
-                "stdout": proc.stdout.strip()[:500]
+                "rpc_error": res.get("rpc_error"),
+                "returncode": res.get("returncode"),
+                "stderr": res.get("stderr"),
+                "stdout": res.get("stdout")
             }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -323,7 +501,6 @@ def tool_reply_to_sender(sender_chat_id, status_message, sender_project="Target"
     if not sender_chat_id or sender_chat_id in ["Unknown", ""]:
         return {"status": "error", "error": "Invalid or missing sender_chat_id."}
 
-    agentapi_cmd = find_agentapi()
     header = (
         f"\n\n---"
         f"\n✅ **[Antigravity-Bridge] Execution Receipt / Response**"
@@ -333,12 +510,24 @@ def tool_reply_to_sender(sender_chat_id, status_message, sender_project="Target"
     )
     full_reply = header + status_message
     try:
-        proc = run_agentapi_command(["send-message", sender_chat_id, full_reply])
+        res = dispatch_agent_message(
+            recipient_id=sender_chat_id,
+            content=full_reply,
+            display_title=f"Bridge Receipt ({sender_project})",
+            sender_id=sender_chat_id,
+        )
+        if res.get("ok"):
+            return {
+                "status": "success",
+                "sender_chat_id": sender_chat_id,
+                "receipt_dispatched": True,
+                "transport": res.get("transport")
+            }
         return {
-            "status": "success" if proc.returncode == 0 else "error",
+            "status": "error",
             "sender_chat_id": sender_chat_id,
-            "receipt_dispatched": proc.returncode == 0,
-            "error": proc.stderr.strip()[:500] if proc.returncode != 0 else None
+            "receipt_dispatched": False,
+            "error": res.get("stderr") or res.get("rpc_error")
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -529,22 +718,25 @@ def handle_request(req):
     req_id = req.get("id")
 
     if method == "initialize":
+        params = req.get("params") or {}
+        client_proto = params.get("protocolVersion", "2025-03-26")
+        negotiated_proto = client_proto if client_proto in ("2025-03-26", "2024-11-05") else "2025-03-26"
         return {
             "jsonrpc": "2.0",
             "id": req_id,
             "result": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": negotiated_proto,
                 "capabilities": {
                     "tools": {}
                 },
                 "serverInfo": {
                     "name": "antigravity-bridge",
-                    "version": "1.0.0"
+                    "version": SERVER_VERSION
                 }
             }
         }
 
-    elif method == "notifications/initialized":
+    elif method and method.startswith("notifications/"):
         return None
 
     elif method == "tools/list":
@@ -647,7 +839,155 @@ def handle_request(req):
             }
         }
 
-def main():
+class McpStreamableHttpHandler(BaseHTTPRequestHandler):
+    """MCP 2025-03-26 Streamable HTTP transport handler (localhost-only)."""
+
+    def log_message(self, format_str, *args):
+        return  # Silence noisy access logs
+
+    def _check_origin(self):
+        origin = (self.headers.get("Origin") or "").strip()
+        if origin and not re.match(r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$", origin, re.IGNORECASE):
+            self.send_response(403)
+            self.end_headers()
+            return False
+        return True
+
+    def do_OPTIONS(self):
+        if not self._check_origin():
+            return
+        self.send_response(204)
+        self.send_header("Allow", "POST, DELETE, OPTIONS")
+        self.end_headers()
+
+    def do_GET(self):
+        if not self._check_origin():
+            return
+        if self.path.startswith("/health"):
+            body = json.dumps({
+                "status": "ok",
+                "name": "antigravity-bridge",
+                "version": SERVER_VERSION,
+                "lsEnvConfigured": bool(os.environ.get("ANTIGRAVITY_LS_ADDRESS") and os.environ.get("ANTIGRAVITY_CSRF_TOKEN")),
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        # Per MCP 2025-03-26 Streamable HTTP spec: return 405 when server does not expose GET SSE stream
+        self.send_response(405)
+        self.send_header("Allow", "POST, DELETE, OPTIONS")
+        self.end_headers()
+
+    def do_DELETE(self):
+        if not self._check_origin():
+            return
+        self.send_response(204)
+        self.end_headers()
+
+    def do_POST(self):
+        if not self._check_origin():
+            return
+        if not (self.path == "/" or self.path.startswith("/mcp")):
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        length = int(self.headers.get("Content-Length") or "0")
+        raw_bytes = self.rfile.read(length) if length > 0 else b""
+        session_hdr = self.headers.get("Mcp-Session-Id")
+
+        try:
+            parsed = json.loads(raw_bytes.decode("utf-8", errors="replace"))
+        except Exception as err:
+            err_body = json.dumps({
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {"code": -32700, "message": f"Parse error: {err}"}
+            }).encode("utf-8")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(err_body)))
+            self.end_headers()
+            self.wfile.write(err_body)
+            return
+
+        if isinstance(parsed, list):
+            responses = []
+            for item in parsed:
+                if isinstance(item, dict):
+                    r = handle_request(item)
+                    if r is not None and "id" in item:
+                        responses.append(r)
+            if not responses:
+                self.send_response(202)
+                if session_hdr:
+                    self.send_header("Mcp-Session-Id", session_hdr)
+                self.end_headers()
+                return
+            out_bytes = json.dumps(responses, ensure_ascii=False).encode("utf-8")
+        elif isinstance(parsed, dict):
+            # Notifications / responses without 'id' MUST receive 202 Accepted per MCP 2025-03-26 spec
+            if "id" not in parsed:
+                handle_request(parsed)
+                self.send_response(202)
+                if session_hdr:
+                    self.send_header("Mcp-Session-Id", session_hdr)
+                self.end_headers()
+                return
+            resp_obj = handle_request(parsed)
+            if resp_obj is None:
+                self.send_response(202)
+                self.end_headers()
+                return
+            out_bytes = json.dumps(resp_obj, ensure_ascii=False).encode("utf-8")
+        else:
+            self.send_response(400)
+            self.end_headers()
+            return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        if session_hdr:
+            self.send_header("Mcp-Session-Id", session_hdr)
+        self.send_header("Content-Length", str(len(out_bytes)))
+        self.end_headers()
+        self.wfile.write(out_bytes)
+
+
+def run_http_server(port):
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), McpStreamableHttpHandler)
+    except OSError as e:
+        win_in_use = getattr(errno, "WSAEADDRINUSE", 10048)
+        if e.errno in (errno.EADDRINUSE, win_in_use):
+            sys.exit(0)
+        raise
+    httpd.serve_forever()
+
+
+def _forward_to_local_sidecar(req, port=3841):
+    """When invoked via stdio without ANTIGRAVITY_LS_ADDRESS, transparently delegates tool calls to the managed local Sidecar."""
+    url = f"http://127.0.0.1:{port}/mcp"
+    data = json.dumps(req, ensure_ascii=False).encode("utf-8")
+    http_req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(http_req, timeout=15.0) as resp:
+        if resp.status == 202:
+            return None
+        raw = resp.read().decode("utf-8", errors="replace")
+        return json.loads(raw) if raw.strip() else None
+
+
+def run_stdio_server():
+    has_direct_ls_env = bool(os.environ.get("ANTIGRAVITY_LS_ADDRESS"))
     while True:
         try:
             line = sys.stdin.readline()
@@ -658,7 +998,15 @@ def main():
                 continue
 
             req = json.loads(line_str)
-            resp = handle_request(req)
+            resp = None
+            if not has_direct_ls_env and isinstance(req, dict) and req.get("method") == "tools/call":
+                try:
+                    resp = _forward_to_local_sidecar(req, 3841)
+                except Exception:
+                    resp = handle_request(req)
+            else:
+                resp = handle_request(req)
+
             if resp is not None:
                 sys.stdout.write(json.dumps(resp) + "\n")
                 sys.stdout.flush()
@@ -673,6 +1021,22 @@ def main():
             }
             sys.stdout.write(json.dumps(err_resp) + "\n")
             sys.stdout.flush()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Antigravity Bridge MCP Server")
+    parser.add_argument(
+        "--http-port",
+        type=int,
+        default=int(os.environ.get("ANTIGRAVITY_BRIDGE_HTTP_PORT") or "0"),
+        help="Run as Streamable HTTP MCP server on 127.0.0.1:<port>/mcp (for Antigravity v2.34+ Sidecars).",
+    )
+    args, _ = parser.parse_known_args()
+    if args.http_port > 0:
+        run_http_server(args.http_port)
+    else:
+        run_stdio_server()
+
 
 if __name__ == "__main__":
     main()

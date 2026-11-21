@@ -1,10 +1,7 @@
 {
   "mcpServers": {
     "antigravity-bridge": {
-      "command": "python",
-      "args": [
-        "${extensionPath}/server.py"
-      ]
+      "url": "http://127.0.0.1:3841/mcp"
     }
   }
 }

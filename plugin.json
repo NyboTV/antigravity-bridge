@@ -1,7 +1,7 @@
 {
   "name": "antigravity-bridge",
   "displayName": "Antigravity Bridge & Inter-Agent Dispatcher",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Cross-project and inter-agent communication for Google Antigravity 2.0. Wake up chats across workspaces, delegate tasks, and manage project inboxes with the /communicate command.",
   "author": {
     "name": "nybotv"

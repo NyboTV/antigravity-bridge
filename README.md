@@ -61,7 +61,7 @@ git clone https://github.com/nybotv/antigravity-bridge.git "$HOME\.gemini\config
 git clone https://github.com/nybotv/antigravity-bridge.git ~/.gemini/config/plugins/antigravity-bridge
 ```
 
-*Restart Antigravity once. Both the MCP server and the `/communicate` command are immediately active!*
+*Restart Antigravity once, and enable `"antigravity-bridge/bridge_server": { "enabled": true }` under `"sidecars"` in `~/.gemini/config/config.json` (required for Antigravity v2.34+, which passes live `ANTIGRAVITY_LS_ADDRESS` & `ANTIGRAVITY_CSRF_TOKEN` via managed Sidecars instead of command-line flags).*
 
 ---
 
@@ -75,22 +75,21 @@ git submodule add https://github.com/nybotv/antigravity-bridge.git .agents/plugi
 
 ---
 
-### Option 3: Manual MCP Server Integration
+### Option 3: Manual MCP Server Integration (Streamable HTTP Sidecar — Antigravity v2.34+)
 
-Add the server to your `~/.gemini/config/mcp_config.json` (or Claude Desktop configuration):
+Register the Streamable HTTP endpoint in `~/.gemini/config/mcp_config.json` (served by the bundled `antigravity-bridge/bridge_server` Sidecar on `127.0.0.1:3841`):
 
 ```json
 {
   "mcpServers": {
     "antigravity-bridge": {
-      "command": "python",
-      "args": [
-        "path/to/antigravity-bridge/server.py"
-      ]
+      "url": "http://127.0.0.1:3841/mcp"
     }
   }
 }
 ```
+
+*(Classic `stdio` execution via `python server.py` remains fully supported when `ANTIGRAVITY_LS_ADDRESS` and `ANTIGRAVITY_CSRF_TOKEN` are present in the environment.)*
 
 ---
 

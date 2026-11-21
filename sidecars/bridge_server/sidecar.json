@@ -1,0 +1,12 @@
+{
+  "display_name": "Antigravity Bridge MCP Daemon",
+  "description": "Local Streamable HTTP MCP daemon (127.0.0.1:3841/mcp) receiving live Antigravity Language Server credentials.",
+  "command": "python",
+  "args": [
+    "-u",
+    "../../server.py",
+    "--http-port",
+    "3841"
+  ],
+  "restart_policy": "always"
+}
