@@ -24,7 +24,8 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SERVER_VERSION = "1.2.0"
+SERVER_VERSION = "1.3.0"
+BRIDGE_APP_URI = "ui://bridge/dashboard.html"
 
 # Universal Paths
 GEMINI_DIR = os.path.expanduser(os.environ.get("ANTIGRAVITY_HOME", r"~/.gemini/antigravity"))
@@ -215,7 +216,7 @@ def get_agentapi_env(force_refresh=False):
     return env
 
 
-def run_agentapi_command(args, timeout=15):
+def run_agentapi_command(args, timeout=15, cwd=None):
     """Executes an agentapi subcommand cleanly against the verified HTTP/h2c port."""
     env = get_agentapi_env(force_refresh=True)
     env["PYTHONIOENCODING"] = "utf-8"
@@ -250,6 +251,7 @@ def run_agentapi_command(args, timeout=15):
             errors="replace",
             timeout=timeout,
             shell=False,
+            cwd=cwd,
             env=env
         )
     else:
@@ -264,6 +266,7 @@ def run_agentapi_command(args, timeout=15):
             errors="replace",
             timeout=timeout,
             shell=(os.name == "nt"),
+            cwd=cwd,
             env=env
         )
 
@@ -620,10 +623,339 @@ def tool_archive_inbox_note(project_name, note_subject, resolution="Resolved"):
         return {"status": "error", "error": str(e)}
 
 
+def tool_spawn_project_chat(project_name, title, prompt, model="gemini-4-argon-medium"):
+    """Starts a fresh conversation pinned cleanly inside the target project workspace directory."""
+    if not project_name or not title or not prompt:
+        return {"status": "error", "error": "project_name, title, and prompt are required."}
+
+    projects = tool_list_projects().get("projects", [])
+    match = next((p for p in projects if p["project_name"].lower() == project_name.strip().lower()), None)
+    if not match:
+        match = next((p for p in projects if project_name.strip().lower() in p["project_name"].lower()), None)
+    if not match:
+        return {"status": "error", "error": f"Project '{project_name}' not found."}
+
+    project_path = match["project_path"]
+    if not project_path or not os.path.isdir(project_path):
+        return {"status": "error", "error": f"Workspace directory does not exist: {project_path}"}
+
+    target_model = (model or "gemini-4-argon-medium").strip()
+    proc = run_agentapi_command(
+        ["new-conversation", f"--title={title}", f"--model={target_model}", prompt],
+        timeout=20,
+        cwd=project_path,
+    )
+    if proc.returncode != 0:
+        return {
+            "status": "error",
+            "returncode": proc.returncode,
+            "stderr": proc.stderr.strip()[:500],
+            "stdout": proc.stdout.strip()[:500],
+        }
+
+    conv_id = None
+    try:
+        parsed = json.loads(proc.stdout.strip() or "{}")
+        conv_id = (
+            parsed.get("response", {}).get("newConversation", {}).get("conversationId")
+            or parsed.get("conversationId")
+        )
+    except Exception:
+        pass
+
+    return {
+        "status": "success" if conv_id else "error",
+        "project_name": match["project_name"],
+        "project_path": project_path,
+        "conversation_id": conv_id,
+        "title": title,
+        "model": target_model,
+        **({"raw_stdout": proc.stdout.strip()[:400]} if not conv_id else {}),
+    }
+
+
+def tool_get_mcp_health():
+    """Queries live Language Server GetMcpServerStates via ConnectRPC."""
+    raw = call_connect_rpc("/exa.language_server_pb.LanguageServerService/GetMcpServerStates", {}, timeout=6.0)
+    raw_states = raw.get("states") or raw.get("serverStates") or raw.get("servers") or []
+    servers = []
+    if isinstance(raw_states, list):
+        for s in raw_states:
+            if not isinstance(s, dict):
+                continue
+            servers.append({
+                "name": s.get("serverName") or s.get("name") or s.get("id") or "unknown",
+                "status": s.get("status") or s.get("state") or "UNKNOWN",
+                "toolCount": len(s.get("tools") or []) if isinstance(s.get("tools"), list) else s.get("toolCount"),
+                "error": s.get("error") or s.get("errorMessage") or None,
+            })
+    elif isinstance(raw_states, dict):
+        for k, s in raw_states.items():
+            servers.append({
+                "name": k,
+                "status": s.get("status") or s.get("state") or "UNKNOWN" if isinstance(s, dict) else str(s),
+            })
+    return {
+        "status": "ok",
+        "bridgeVersion": SERVER_VERSION,
+        "serverCount": len(servers),
+        "servers": servers,
+    }
+
+
+BRIDGE_DASHBOARD_HTML = """<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Bridge Board</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 14px;
+    background: var(--color-background-primary, #1A1B26);
+    color: var(--color-text-primary, #C0CAF5);
+    font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+    font-size: 13px;
+  }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  .sub { font-size: 11px; color: var(--color-text-secondary, #787C99); margin-top: 2px; }
+  .btn {
+    border: 1px solid var(--color-border-primary, #3B4261);
+    background: var(--color-background-secondary, #24283B);
+    color: var(--color-text-primary, #C0CAF5);
+    border-radius: 7px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .btn:hover { border-color: #7AA2F7; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+  .card {
+    background: var(--color-background-secondary, #24283B);
+    border: 1px solid var(--color-border-primary, #2F3549);
+    border-radius: 9px; padding: 10px 12px; cursor: pointer;
+    transition: border-color .15s;
+  }
+  .card:hover, .card.active { border-color: #7AA2F7; }
+  .pname { font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 99px; background: rgba(122,162,247,.16); color: #7AA2F7; }
+  .badge.inbox { background: rgba(158,206,106,.16); color: #9ECE6A; margin-left: 4px; }
+  .ppath { font-size: 11px; color: var(--color-text-secondary, #787C99); margin-top: 4px; word-break: break-all; }
+  .detail {
+    margin-top: 14px; background: var(--color-background-secondary, #24283B);
+    border: 1px solid var(--color-border-primary, #2F3549);
+    border-radius: 9px; padding: 12px;
+  }
+  .chat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); gap: 8px; }
+  .chat-row:last-child { border-bottom: none; }
+  .gw { color: #9ECE6A; font-weight: 600; }
+  .muted { color: var(--color-text-secondary, #787C99); font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>Antigravity Bridge Board</h1>
+      <div class="sub" id="meta">Verbinde...</div>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn" id="btnHealth">MCP Health</button>
+      <button class="btn" id="btnRefresh">Aktualisieren</button>
+    </div>
+  </div>
+  <div class="grid" id="projects"></div>
+  <div class="detail" id="detail" style="display:none;"></div>
+<script>
+(function () {
+  let nextId = 2;
+  const pending = new Map();
+  let projectsData = null;
+  let selectedName = null;
+  let receivedResult = false;
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function applyVars(vars) {
+    if (!vars || typeof vars !== 'object') return;
+    for (const [k, v] of Object.entries(vars)) {
+      if (v) document.documentElement.style.setProperty(k, String(v));
+    }
+  }
+
+  function rpcRequest(method, params) {
+    const id = nextId++;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+      setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          reject(new Error('Timeout'));
+        }
+      }, 15000);
+    });
+  }
+
+  function callTool(name, args) {
+    return rpcRequest('tools/call', { name, arguments: args || {} }).then(res => {
+      if (res && res.structuredContent) return res.structuredContent;
+      const txt = res && res.content && res.content[0] && res.content[0].text;
+      return txt ? JSON.parse(txt) : res;
+    });
+  }
+
+  function renderProjects(data) {
+    projectsData = data;
+    const list = (data && data.projects) || [];
+    document.getElementById('meta').textContent = list.length + ' aktive Workspaces (0 LLM-Tokens)';
+    const root = document.getElementById('projects');
+    root.innerHTML = list.map(p => (
+      '<div class="card ' + (selectedName === p.project_name ? 'active' : '') + '" data-proj="' + esc(p.project_name) + '">' +
+      '<div class="pname"><span>' + esc(p.project_name) + '</span><span>' +
+      '<span class="badge">' + esc(p.active_chats_count) + '</span>' +
+      (p.has_inbox ? '<span class="badge inbox">INBOX</span>' : '') +
+      '</span></div>' +
+      '<div class="ppath">' + esc(p.project_path) + '</div>' +
+      '</div>'
+    )).join('');
+    root.querySelectorAll('.card').forEach(el => {
+      el.onclick = () => inspectProject(el.getAttribute('data-proj'));
+    });
+  }
+
+  function inspectProject(name) {
+    selectedName = name;
+    if (projectsData) renderProjects(projectsData);
+    const det = document.getElementById('detail');
+    det.style.display = 'block';
+    det.innerHTML = '<div class="muted">Lade Chats fuer ' + esc(name) + '...</div>';
+    callTool('list_project_chats', { project_name: name }).then(res => {
+      const chats = (res && res.chats) || [];
+      det.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:8px;"><strong>' +
+        esc(res.project_name || name) + ' (' + esc(res.total_chats || chats.length) + ' Chats)</strong>' +
+        '<span class="muted">' + (res.has_multiple_gateways ? 'Mehrere Gateways' : 'Gateway bereit') + '</span></div>' +
+        (chats.length ? chats.map(c => (
+          '<div class="chat-row"><div><span class="' + (c.is_gateway ? 'gw' : '') + '">' + esc(c.title) + '</span>' +
+          '<div class="muted">' + esc(c.conversation_id) + '</div></div>' +
+          '<div class="muted">' + esc(String(c.last_updated || '').slice(0, 19)) + '</div></div>'
+        )).join('') : '<div class="muted">Keine Chats gefunden.</div>');
+    }).catch(err => {
+      det.innerHTML = '<div class="muted">Fehler: ' + esc(err.message) + '</div>';
+    });
+  }
+
+  function showHealth() {
+    const det = document.getElementById('detail');
+    det.style.display = 'block';
+    det.innerHTML = '<div class="muted">Pruefe MCP Server Status...</div>';
+    callTool('get_mcp_health', {}).then(res => {
+      const srvs = (res && res.servers) || [];
+      det.innerHTML = '<strong>MCP Health (' + esc(res.serverCount || srvs.length) + ' Server)</strong><div style="margin-top:8px;">' +
+        srvs.map(s => '<div class="chat-row"><span>' + esc(s.name) + '</span><span class="muted">' + esc(s.status) + '</span></div>').join('') +
+        '</div>';
+    }).catch(err => {
+      det.innerHTML = '<div class="muted">Fehler: ' + esc(err.message) + '</div>';
+    });
+  }
+
+  window.addEventListener('message', ev => {
+    const msg = ev.data;
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.id && pending.has(msg.id)) {
+      const h = pending.get(msg.id);
+      pending.delete(msg.id);
+      if (msg.error) h.reject(new Error(msg.error.message || 'RPC error'));
+      else h.resolve(msg.result);
+      return;
+    }
+    if (msg.method === 'ui/notifications/host-context-changed' && msg.params && msg.params.styles) {
+      applyVars(msg.params.styles.variables);
+    }
+    if (msg.method === 'ui/notifications/tool-result' && msg.params) {
+      receivedResult = true;
+      const p = msg.params;
+      if (p.structuredContent) renderProjects(p.structuredContent);
+      else if (p.content && p.content[0] && p.content[0].text) {
+        try { renderProjects(JSON.parse(p.content[0].text)); } catch {}
+      }
+    }
+  });
+
+  document.getElementById('btnRefresh').onclick = () => {
+    callTool('list_projects', {}).then(renderProjects).catch(() => {});
+  };
+  document.getElementById('btnHealth').onclick = showHealth;
+
+  window.parent.postMessage({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'ui/initialize',
+    params: { appInfo: { name: 'Bridge Board', version: '1.3.0' }, appCapabilities: {}, protocolVersion: '2025-11-21' }
+  }, '*');
+  pending.set(1, {
+    resolve: res => {
+      if (res && res.hostContext && res.hostContext.styles) applyVars(res.hostContext.styles.variables);
+      window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
+      setTimeout(() => {
+        if (!receivedResult) callTool('list_projects', {}).then(renderProjects).catch(() => {});
+      }, 650);
+    },
+    reject: () => {}
+  });
+})();
+</script>
+</body>
+</html>
+"""
+
+
 TOOLS = [
     {
         "name": "list_projects",
         "description": "Lists all registered Google Antigravity projects, workspace paths, and active chat metrics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "_meta": {
+            "ui": {"resourceUri": BRIDGE_APP_URI},
+            "com.google.antigravity/ui": {
+                "entrypoints": [
+                    {"type": "aux_pane", "title": "Bridge Board"},
+                    {"type": "global", "title": "Bridge Board"},
+                ]
+            },
+        },
+    },
+    {
+        "name": "spawn_project_chat",
+        "description": "Creates and starts a fresh Antigravity conversation pinned cleanly inside the target project workspace directory.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_name": {
+                    "type": "string",
+                    "description": "Target project name from list_projects (e.g. 'Anwalt', 'Nyeo', 'Gamebot-Systems')."
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Title for the new conversation."
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "Initial prompt/assignment to run in the new conversation."
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Optional model ID (default: 'gemini-4-argon-medium')."
+                }
+            },
+            "required": ["project_name", "title", "prompt"]
+        }
+    },
+    {
+        "name": "get_mcp_health",
+        "description": "Checks live connection states of all MCP servers registered in the Antigravity Language Server.",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -727,7 +1059,8 @@ def handle_request(req):
             "result": {
                 "protocolVersion": negotiated_proto,
                 "capabilities": {
-                    "tools": {}
+                    "tools": {},
+                    "resources": {}
                 },
                 "serverInfo": {
                     "name": "antigravity-bridge",
@@ -738,6 +1071,45 @@ def handle_request(req):
 
     elif method and method.startswith("notifications/"):
         return None
+
+    elif method == "resources/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "resources": [
+                    {
+                        "uri": BRIDGE_APP_URI,
+                        "name": "Bridge Board",
+                        "description": "Interactive cross-project Antigravity Bridge dashboard",
+                        "mimeType": "text/html;profile=mcp-app",
+                    }
+                ]
+            }
+        }
+
+    elif method == "resources/read":
+        uri = (req.get("params") or {}).get("uri")
+        if uri == BRIDGE_APP_URI:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "contents": [
+                        {
+                            "uri": BRIDGE_APP_URI,
+                            "mimeType": "text/html;profile=mcp-app",
+                            "text": BRIDGE_DASHBOARD_HTML,
+                            "_meta": {"ui": {"prefersBorder": False}},
+                        }
+                    ]
+                }
+            }
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "error": {"code": -32602, "message": f"Resource not found: {uri}"}
+        }
 
     elif method == "tools/list":
         return {
@@ -756,6 +1128,15 @@ def handle_request(req):
         try:
             if name == "list_projects":
                 res = tool_list_projects()
+            elif name == "spawn_project_chat":
+                res = tool_spawn_project_chat(
+                    project_name=args.get("project_name"),
+                    title=args.get("title"),
+                    prompt=args.get("prompt"),
+                    model=args.get("model", "gemini-4-argon-medium"),
+                )
+            elif name == "get_mcp_health":
+                res = tool_get_mcp_health()
             elif name == "list_project_chats":
                 res = tool_list_project_chats(args.get("project_name"))
             elif name == "get_chat_status":
@@ -799,17 +1180,21 @@ def handle_request(req):
                     }
                 }
 
+            result_obj = {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(res, indent=2, ensure_ascii=False)
+                    }
+                ]
+            }
+            if isinstance(res, dict):
+                result_obj["structuredContent"] = res
+
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": json.dumps(res, indent=2, ensure_ascii=False)
-                        }
-                    ]
-                }
+                "result": result_obj
             }
         except Exception as e:
             return {

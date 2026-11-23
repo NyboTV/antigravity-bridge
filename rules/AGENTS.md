@@ -3,6 +3,8 @@
 > **⚡ ZERO-TURN MCP RULE:** NEVER read `SKILL.md` or `.json` schema files before calling `antigravity-bridge` tools. Call `call_mcp_tool(ServerName="antigravity-bridge", ToolName=..., Arguments=...)` directly in Turn 1 using these exact signatures:
 - `list_projects`: `{}`
 - `list_project_chats`: `{ project_name: string }`
+- `spawn_project_chat`: `{ project_name: string, title: string, prompt: string, model?: string }`
+- `get_mcp_health`: `{}`
 - `send_message_to_chat`: `{ conversation_id: string, message: string, priority?: "Normal"|"Dringend", sender_project?: string, sender_chat_id?: string }`
 - `reply_to_sender`: `{ sender_chat_id: string, status_message: string, sender_project?: string }`
 - `get_chat_status`: `{ conversation_id: string }`
